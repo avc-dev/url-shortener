@@ -4,13 +4,20 @@ import (
 	"net/http"
 
 	"github.com/avc-dev/url-shortener/internal/handler"
+	"github.com/avc-dev/url-shortener/internal/repository"
+	"github.com/avc-dev/url-shortener/internal/store"
 )
 
 func main() {
-	mux := http.NewServeMux()
-	mux.HandleFunc(`/`, handler.CreateUrl)
-	mux.HandleFunc(`/EwHXdJfB`, handler.GetUrl)
+	storage := store.NewStore()
+	repo := repository.New(storage)
+	usecase := handler.New(repo)
 
+	mux := http.NewServeMux()
+	mux.HandleFunc(`/{id}`, usecase.GetURL)
+	mux.HandleFunc(`/`, usecase.CreateURL)
+
+	// TODO cfg: move to config
 	err := http.ListenAndServe(`:8080`, mux)
 	if err != nil {
 		panic(err)
