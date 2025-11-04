@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,25 +47,25 @@ func TestCreateURL_Success(t *testing.T) {
 			name:           "Valid HTTP URL",
 			originalURL:    "https://example.com",
 			expectedStatus: http.StatusCreated,
-			expectedPrefix: "http://localhost:8080/",
+			expectedPrefix: config.BaseURL.String(),
 		},
 		{
 			name:           "Valid HTTPS URL with path",
 			originalURL:    "https://example.com/some/path?query=param",
 			expectedStatus: http.StatusCreated,
-			expectedPrefix: "http://localhost:8080/",
+			expectedPrefix: config.BaseURL.String(),
 		},
 		{
 			name:           "Long URL",
 			originalURL:    "https://example.com/very/long/path/that/goes/on/and/on/with/many/segments",
 			expectedStatus: http.StatusCreated,
-			expectedPrefix: "http://localhost:8080/",
+			expectedPrefix: config.BaseURL.String(),
 		},
 		{
 			name:           "URL with special characters",
 			originalURL:    "https://example.com/path?param=value&other=test#anchor",
 			expectedStatus: http.StatusCreated,
-			expectedPrefix: "http://localhost:8080/",
+			expectedPrefix: config.BaseURL.String(),
 		},
 	}
 
@@ -97,7 +98,7 @@ func TestCreateURL_Success(t *testing.T) {
 			require.NoError(t, err)
 
 			respStr := string(respBody)
-			assert.True(t, strings.HasPrefix(respStr, tt.expectedPrefix), 
+			assert.True(t, strings.HasPrefix(respStr, tt.expectedPrefix),
 				"Expected response to start with %s, got %s", tt.expectedPrefix, respStr)
 
 			// Проверяем что ответ содержит код (должен быть префикс + 8 символов)

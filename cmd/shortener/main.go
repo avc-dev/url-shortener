@@ -1,8 +1,10 @@
 package main
 
 import (
+	"flag"
 	"net/http"
 
+	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/handler"
 	"github.com/avc-dev/url-shortener/internal/repository"
 	"github.com/avc-dev/url-shortener/internal/store"
@@ -10,6 +12,8 @@ import (
 )
 
 func main() {
+	flag.Parse()
+
 	storage := store.NewStore()
 	repo := repository.New(storage)
 	usecase := handler.New(repo)
@@ -18,8 +22,7 @@ func main() {
 	r.Post("/", usecase.CreateURL)
 	r.Get("/{id}", usecase.GetURL)
 
-	// TODO cfg: move to config
-	err := http.ListenAndServe(`:8080`, r)
+	err := http.ListenAndServe(config.Address.String(), r)
 	if err != nil {
 		panic(err)
 	}

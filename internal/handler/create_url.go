@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/model"
 	"github.com/avc-dev/url-shortener/internal/service"
 )
@@ -27,6 +28,5 @@ func (u *Usecase) CreateURL(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 
-	// TODO cfg: move to config
-	w.Write([]byte("http://localhost:8080/" + code))
+	w.Write([]byte(config.BaseURL.String() + code))
 }
