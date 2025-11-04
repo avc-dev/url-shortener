@@ -54,8 +54,8 @@ func (b *URLPrefix) Set(value string) error {
 }
 
 var (
-	Address NetworkAddress = NetworkAddress{Host: "localhost", Port: 8000}
-	BaseURL URLPrefix      = URLPrefix("http://localhost:8000")
+	Address NetworkAddress = NetworkAddress{Host: "localhost", Port: 8080}
+	BaseURL URLPrefix      = URLPrefix("http://localhost:8080")
 )
 
 func init() {
