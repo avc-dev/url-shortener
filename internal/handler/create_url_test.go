@@ -109,62 +109,6 @@ func TestCreateURL_Success(t *testing.T) {
 	}
 }
 
-// TestCreateURL_WrongMethod проверяет обработку неправильного HTTP метода
-func TestCreateURL_WrongMethod(t *testing.T) {
-	tests := []struct {
-		name           string
-		method         string
-		expectedStatus int
-	}{
-		{
-			name:           "GET method",
-			method:         http.MethodGet,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "PUT method",
-			method:         http.MethodPut,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "DELETE method",
-			method:         http.MethodDelete,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "PATCH method",
-			method:         http.MethodPatch,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "HEAD method",
-			method:         http.MethodHead,
-			expectedStatus: http.StatusBadRequest,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Arrange
-			mockRepo := &MockRepository{}
-			usecase := New(mockRepo)
-
-			body := bytes.NewBufferString("https://example.com")
-			req := httptest.NewRequest(tt.method, "/", body)
-			w := httptest.NewRecorder()
-
-			// Act
-			usecase.CreateURL(w, req)
-
-			// Assert
-			resp := w.Result()
-			defer resp.Body.Close()
-
-			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-		})
-	}
-}
-
 // TestCreateURL_EmptyBody проверяет обработку пустого body
 func TestCreateURL_EmptyBody(t *testing.T) {
 	// Arrange

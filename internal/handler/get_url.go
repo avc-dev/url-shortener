@@ -4,15 +4,11 @@ import (
 	"net/http"
 
 	"github.com/avc-dev/url-shortener/internal/model"
+	"github.com/go-chi/chi/v5"
 )
 
 func (u *Usecase) GetURL(w http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodGet {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	code := req.URL.Path[1:]
+	code := chi.URLParam(req, "id")
 	url, err := u.repo.GetURLByCode(model.Code(code))
 
 	if err != nil {

@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/avc-dev/url-shortener/internal/model"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -69,6 +71,10 @@ func TestGetURL_Success(t *testing.T) {
 			usecase := New(mockRepo)
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.code, nil)
+			// Add chi context with URL parameter
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", tt.code)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 			w := httptest.NewRecorder()
 
 			// Act
@@ -80,73 +86,6 @@ func TestGetURL_Success(t *testing.T) {
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 			assert.Equal(t, tt.expectedRedirect, resp.Header.Get("Location"))
-		})
-	}
-}
-
-// TestGetURL_WrongMethod проверяет обработку неправильного HTTP метода
-func TestGetURL_WrongMethod(t *testing.T) {
-	tests := []struct {
-		name           string
-		method         string
-		expectedStatus int
-	}{
-		{
-			name:           "POST method",
-			method:         http.MethodPost,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "PUT method",
-			method:         http.MethodPut,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "DELETE method",
-			method:         http.MethodDelete,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "PATCH method",
-			method:         http.MethodPatch,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "HEAD method",
-			method:         http.MethodHead,
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name:           "OPTIONS method",
-			method:         http.MethodOptions,
-			expectedStatus: http.StatusBadRequest,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Arrange
-			mockRepo := &MockRepository{
-				GetURLByCodeFunc: func(code model.Code) (model.URL, error) {
-					t.Error("Repository should not be called for wrong method")
-					return "", nil
-				},
-			}
-
-			usecase := New(mockRepo)
-
-			req := httptest.NewRequest(tt.method, "/abc12345", nil)
-			w := httptest.NewRecorder()
-
-			// Act
-			usecase.GetURL(w, req)
-
-			// Assert
-			resp := w.Result()
-			defer resp.Body.Close()
-
-			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-			assert.Empty(t, resp.Header.Get("Location"))
 		})
 	}
 }
@@ -192,6 +131,10 @@ func TestGetURL_NotFound(t *testing.T) {
 			usecase := New(mockRepo)
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.code, nil)
+			// Add chi context with URL parameter
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", tt.code)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 			w := httptest.NewRecorder()
 
 			// Act
@@ -220,6 +163,10 @@ func TestGetURL_EmptyCode(t *testing.T) {
 	usecase := New(mockRepo)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	// Add chi context with empty URL parameter
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
 	// Act
@@ -280,6 +227,10 @@ func TestGetURL_CodeExtraction(t *testing.T) {
 			usecase := New(mockRepo)
 
 			req := httptest.NewRequest(http.MethodGet, tt.requestPath, nil)
+			// Add chi context with URL parameter
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", tt.expectedCode)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 			w := httptest.NewRecorder()
 
 			// Act
@@ -366,6 +317,10 @@ func TestGetURL_BoundaryConditions(t *testing.T) {
 			usecase := New(mockRepo)
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.code, nil)
+			// Add chi context with URL parameter
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", tt.code)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 			w := httptest.NewRecorder()
 
 			// Act
@@ -396,6 +351,10 @@ func TestGetURL_UnicodeURL(t *testing.T) {
 	usecase := New(mockRepo)
 
 	req := httptest.NewRequest(http.MethodGet, "/abc12345", nil)
+	// Add chi context with URL parameter
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "abc12345")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
 	// Act
@@ -434,6 +393,10 @@ func TestGetURL_RedirectStatusCode(t *testing.T) {
 	usecase := New(mockRepo)
 
 	req := httptest.NewRequest(http.MethodGet, "/abc12345", nil)
+	// Add chi context with URL parameter
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "abc12345")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
 	// Act
@@ -465,6 +428,10 @@ func TestGetURL_RepositoryInteraction(t *testing.T) {
 	usecase := New(mockRepo)
 
 	req := httptest.NewRequest(http.MethodGet, "/"+expectedCode, nil)
+	// Add chi context with URL parameter
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", expectedCode)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	w := httptest.NewRecorder()
 
 	// Act
@@ -493,6 +460,10 @@ func TestGetURL_ConcurrentRequests(t *testing.T) {
 		go func(index int) {
 			code := string(rune('a' + index))
 			req := httptest.NewRequest(http.MethodGet, "/"+code, nil)
+			// Add chi context with URL parameter
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", code)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 			w := httptest.NewRecorder()
 
 			usecase.GetURL(w, req)
