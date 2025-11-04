@@ -2,7 +2,6 @@ package repository
 
 import (
 	"github.com/avc-dev/url-shortener/internal/model"
-	"github.com/avc-dev/url-shortener/internal/store"
 )
 
 type Store interface {
