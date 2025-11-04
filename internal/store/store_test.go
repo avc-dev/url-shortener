@@ -98,7 +98,7 @@ func TestStore_Write_Duplicate(t *testing.T) {
 	assert.Contains(t, err.Error(), "already exists")
 
 	// Проверяем что старое значение не изменилось
-	value, _ := store.store[code]
+	value := store.store[code]
 	assert.Equal(t, url1, value)
 }
 
