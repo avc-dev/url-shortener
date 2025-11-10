@@ -23,9 +23,9 @@ func TestNewStore(t *testing.T) {
 // TestStore_Write_Success проверяет успешную запись
 func TestStore_Write_Success(t *testing.T) {
 	tests := []struct {
-		name  string
-		code  model.Code
-		url   model.URL
+		name string
+		code model.Code
+		url  model.URL
 	}{
 		{
 			name: "Simple write",
@@ -173,7 +173,7 @@ func TestStore_Read_NotFound(t *testing.T) {
 			// Assert
 			require.Error(t, err)
 			assert.Empty(t, value)
-			assert.Contains(t, err.Error(), "not exist")
+			assert.ErrorIs(t, err, ErrNotFound)
 		})
 	}
 }
@@ -212,9 +212,9 @@ func TestStore_MultipleWrites(t *testing.T) {
 
 	// Act - записываем много значений
 	for i := 0; i < numWrites; i++ {
-		code := model.Code(string(rune('a' + i%26)) + string(rune('0' + i%10)))
+		code := model.Code(string(rune('a'+i%26)) + string(rune('0'+i%10)))
 		url := model.URL("https://example.com/" + string(rune('0'+i)))
-		
+
 		_ = store.Write(code, url)
 	}
 
@@ -239,7 +239,7 @@ func TestStore_ConcurrentReads(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func() {
 			defer wg.Done()
-			
+
 			url, err := store.Read(code)
 			if err != nil {
 				errors <- err
@@ -272,10 +272,10 @@ func TestStore_ConcurrentWrites(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(index int) {
 			defer wg.Done()
-			
+
 			code := model.Code("code" + string(rune('0'+index)))
 			url := model.URL("https://example.com/" + string(rune('0'+index)))
-			
+
 			err := store.Write(code, url)
 			if err != nil {
 				errors <- err
@@ -333,7 +333,7 @@ func TestStore_ConcurrentReadWrite(t *testing.T) {
 
 	// Assert - просто проверяем что нет race conditions и паники
 	wg.Wait()
-	
+
 	// Проверяем что store все еще работает
 	testCode := model.Code("initial0")
 	_, err := store.Read(testCode)
@@ -447,23 +447,23 @@ func TestStore_ErrorMessages(t *testing.T) {
 	t.Run("Read not exist error message", func(t *testing.T) {
 		code := model.Code("notfound")
 		_, err := store.Read(code)
-		
+
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), string(code))
-		assert.Contains(t, err.Error(), "not exist")
+		assert.ErrorIs(t, err, ErrNotFound)
 	})
 
 	// Тест ошибки "already exists"
 	t.Run("Write duplicate error message", func(t *testing.T) {
 		code := model.Code("duplicate")
 		url := model.URL("https://example.com")
-		
+
 		_ = store.Write(code, url)
 		err := store.Write(code, url)
-		
+
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), string(code))
-		assert.Contains(t, err.Error(), "already exists")
+		assert.ErrorIs(t, err, ErrAlreadyExists)
 	})
 }
 
@@ -472,7 +472,7 @@ func TestStore_StoreIsolation(t *testing.T) {
 	// Arrange
 	store1 := NewStore()
 	store2 := NewStore()
-	
+
 	code := model.Code("testcode")
 	url1 := model.URL("https://example.com/store1")
 	url2 := model.URL("https://example.com/store2")
