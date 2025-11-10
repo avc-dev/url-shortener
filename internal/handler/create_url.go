@@ -31,15 +31,15 @@ func (u *Usecase) CreateURL(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Формируем ответ
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusCreated)
-
+	// Формируем URL ответа
 	shortURL, err := url.JoinPath(config.BaseURL.String(), string(code))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
+	// Отправляем ответ
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(shortURL))
 }
