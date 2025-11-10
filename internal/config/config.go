@@ -27,7 +27,7 @@ func (a *NetworkAddress) Set(value string) error {
 
 	port, err := strconv.Atoi(parts[1])
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid port: %w", err)
 	}
 	a.Port = port
 
@@ -44,9 +44,6 @@ func (b *URLPrefix) Set(value string) error {
 	if !strings.HasPrefix(value, "http") {
 		return fmt.Errorf("invalid URL prefix format: %s", value)
 	}
-
-	value = strings.TrimSuffix(value, "/")
-	value = value + "/"
 
 	*b = URLPrefix(value)
 

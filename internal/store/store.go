@@ -1,45 +1,51 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/avc-dev/url-shortener/internal/model"
 )
 
+var (
+	ErrNotFound      = errors.New("key not found")
+	ErrAlreadyExists = errors.New("key already exists")
+)
+
 type Store struct {
 	store map[model.Code]model.URL
-	mutex sync.RWMutex
+	mutex sync.Mutex
 }
 
 func NewStore() *Store {
 	return &Store{
 		store: make(map[model.Code]model.URL),
-		mutex: sync.RWMutex{},
+		mutex: sync.Mutex{},
 	}
 }
 
 func (s *Store) Read(key model.Code) (model.URL, error) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
 	value, ok := s.store[key]
 
 	if !ok {
-		return "", fmt.Errorf("key %s not exist", key)
+		return "", fmt.Errorf("key %s: %w", key, ErrNotFound)
 	}
 
 	return value, nil
 }
 
 func (s *Store) Write(key model.Code, value model.URL) error {
-	_, err := s.Read(key)
-	if err == nil {
-		return fmt.Errorf("key %s already exists", key)
-	}
-
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
+	_, err := s.Read(key)
+	if err == nil {
+		return fmt.Errorf("key %s: %w", key, ErrAlreadyExists)
+	}
 
 	s.store[key] = value
 

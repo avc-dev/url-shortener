@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/avc-dev/url-shortener/internal/mocks"
 	"github.com/avc-dev/url-shortener/internal/model"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -15,11 +16,11 @@ import (
 // TestGetURL_Success проверяет успешное получение URL по коду
 func TestGetURL_Success(t *testing.T) {
 	tests := []struct {
-		name               string
-		code               string
-		expectedURL        string
-		expectedStatus     int
-		expectedRedirect   string
+		name             string
+		code             string
+		expectedURL      string
+		expectedStatus   int
+		expectedRedirect string
 	}{
 		{
 			name:             "Valid short code",
@@ -61,14 +62,14 @@ func TestGetURL_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockRepo := &MockRepository{
-				GetURLByCodeFunc: func(code model.Code) (model.URL, error) {
-					assert.Equal(t, tt.code, string(code))
-					return model.URL(tt.expectedURL), nil
-				},
-			}
+			mockRepo := mocks.NewMockURLRepository(t)
+			mockService := mocks.NewMockURLService(t)
+			mockRepo.EXPECT().
+				GetURLByCode(model.Code(tt.code)).
+				Return(model.URL(tt.expectedURL), nil).
+				Once()
 
-			usecase := New(mockRepo)
+			usecase := New(mockRepo, mockService)
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.code, nil)
 			// Add chi context with URL parameter
@@ -121,14 +122,14 @@ func TestGetURL_NotFound(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockRepo := &MockRepository{
-				GetURLByCodeFunc: func(code model.Code) (model.URL, error) {
-					assert.Equal(t, tt.code, string(code))
-					return "", tt.repoError
-				},
-			}
+			mockRepo := mocks.NewMockURLRepository(t)
+			mockService := mocks.NewMockURLService(t)
+			mockRepo.EXPECT().
+				GetURLByCode(model.Code(tt.code)).
+				Return(model.URL(""), tt.repoError).
+				Once()
 
-			usecase := New(mockRepo)
+			usecase := New(mockRepo, mockService)
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.code, nil)
 			// Add chi context with URL parameter
@@ -153,14 +154,14 @@ func TestGetURL_NotFound(t *testing.T) {
 // TestGetURL_EmptyCode проверяет обработку пустого кода
 func TestGetURL_EmptyCode(t *testing.T) {
 	// Arrange
-	mockRepo := &MockRepository{
-		GetURLByCodeFunc: func(code model.Code) (model.URL, error) {
-			assert.Empty(t, string(code))
-			return "", errors.New("not found")
-		},
-	}
+	mockRepo := mocks.NewMockURLRepository(t)
+	mockService := mocks.NewMockURLService(t)
+	mockRepo.EXPECT().
+		GetURLByCode(model.Code("")).
+		Return(model.URL(""), errors.New("not found")).
+		Once()
 
-	usecase := New(mockRepo)
+	usecase := New(mockRepo, mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	// Add chi context with empty URL parameter
@@ -216,15 +217,14 @@ func TestGetURL_CodeExtraction(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			var capturedCode string
-			mockRepo := &MockRepository{
-				GetURLByCodeFunc: func(code model.Code) (model.URL, error) {
-					capturedCode = string(code)
-					return model.URL("https://example.com"), nil
-				},
-			}
+			mockRepo := mocks.NewMockURLRepository(t)
+			mockService := mocks.NewMockURLService(t)
+			mockRepo.EXPECT().
+				GetURLByCode(model.Code(tt.expectedCode)).
+				Return(model.URL("https://example.com"), nil).
+				Once()
 
-			usecase := New(mockRepo)
+			usecase := New(mockRepo, mockService)
 
 			req := httptest.NewRequest(http.MethodGet, tt.requestPath, nil)
 			// Add chi context with URL parameter
@@ -235,9 +235,6 @@ func TestGetURL_CodeExtraction(t *testing.T) {
 
 			// Act
 			usecase.GetURL(w, req)
-
-			// Assert
-			assert.Equal(t, tt.expectedCode, capturedCode)
 		})
 	}
 }
@@ -305,16 +302,21 @@ func TestGetURL_BoundaryConditions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockRepo := &MockRepository{
-				GetURLByCodeFunc: func(code model.Code) (model.URL, error) {
-					if tt.returnError != nil {
-						return "", tt.returnError
-					}
-					return model.URL(tt.returnURL), nil
-				},
+			mockRepo := mocks.NewMockURLRepository(t)
+			mockService := mocks.NewMockURLService(t)
+			if tt.returnError != nil {
+				mockRepo.EXPECT().
+					GetURLByCode(model.Code(tt.code)).
+					Return(model.URL(""), tt.returnError).
+					Once()
+			} else {
+				mockRepo.EXPECT().
+					GetURLByCode(model.Code(tt.code)).
+					Return(model.URL(tt.returnURL), nil).
+					Once()
 			}
 
-			usecase := New(mockRepo)
+			usecase := New(mockRepo, mockService)
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.code, nil)
 			// Add chi context with URL parameter
@@ -342,13 +344,14 @@ func TestGetURL_BoundaryConditions(t *testing.T) {
 // TestGetURL_UnicodeURL проверяет обработку URL с unicode символами
 func TestGetURL_UnicodeURL(t *testing.T) {
 	// Arrange
-	mockRepo := &MockRepository{
-		GetURLByCodeFunc: func(code model.Code) (model.URL, error) {
-			return model.URL("https://example.com/путь"), nil
-		},
-	}
+	mockRepo := mocks.NewMockURLRepository(t)
+	mockService := mocks.NewMockURLService(t)
+	mockRepo.EXPECT().
+		GetURLByCode(model.Code("abc12345")).
+		Return(model.URL("https://example.com/путь"), nil).
+		Once()
 
-	usecase := New(mockRepo)
+	usecase := New(mockRepo, mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/abc12345", nil)
 	// Add chi context with URL parameter
@@ -369,14 +372,14 @@ func TestGetURL_UnicodeURL(t *testing.T) {
 	// Location header будет содержать URL-encoded версию
 	location := resp.Header.Get("Location")
 	assert.NotEmpty(t, location, "Expected Location header to be set")
-	
+
 	// Проверяем что это валидный URL с закодированными unicode символами или без
 	// URL encoding может быть в разном регистре в зависимости от версии Go
 	expectedEncodedLower := "https://example.com/%d0%bf%d1%83%d1%82%d1%8c"
 	expectedEncodedUpper := "https://example.com/%D0%BF%D1%83%D1%82%D1%8C"
 	expectedRaw := "https://example.com/путь"
-	
-	assert.True(t, 
+
+	assert.True(t,
 		location == expectedEncodedLower || location == expectedEncodedUpper || location == expectedRaw,
 		"Got Location: %s", location)
 }
@@ -384,13 +387,14 @@ func TestGetURL_UnicodeURL(t *testing.T) {
 // TestGetURL_RedirectStatusCode проверяет что используется правильный статус редиректа
 func TestGetURL_RedirectStatusCode(t *testing.T) {
 	// Arrange
-	mockRepo := &MockRepository{
-		GetURLByCodeFunc: func(code model.Code) (model.URL, error) {
-			return model.URL("https://example.com"), nil
-		},
-	}
+	mockRepo := mocks.NewMockURLRepository(t)
+	mockService := mocks.NewMockURLService(t)
+	mockRepo.EXPECT().
+		GetURLByCode(model.Code("abc12345")).
+		Return(model.URL("https://example.com"), nil).
+		Once()
 
-	usecase := New(mockRepo)
+	usecase := New(mockRepo, mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/abc12345", nil)
 	// Add chi context with URL parameter
@@ -414,18 +418,16 @@ func TestGetURL_RedirectStatusCode(t *testing.T) {
 // TestGetURL_RepositoryInteraction проверяет взаимодействие с репозиторием
 func TestGetURL_RepositoryInteraction(t *testing.T) {
 	// Arrange
-	callCount := 0
 	expectedCode := "testcode"
 
-	mockRepo := &MockRepository{
-		GetURLByCodeFunc: func(code model.Code) (model.URL, error) {
-			callCount++
-			assert.Equal(t, expectedCode, string(code))
-			return model.URL("https://example.com"), nil
-		},
-	}
+	mockRepo := mocks.NewMockURLRepository(t)
+	mockService := mocks.NewMockURLService(t)
+	mockRepo.EXPECT().
+		GetURLByCode(model.Code(expectedCode)).
+		Return(model.URL("https://example.com"), nil).
+		Once()
 
-	usecase := New(mockRepo)
+	usecase := New(mockRepo, mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/"+expectedCode, nil)
 	// Add chi context with URL parameter
@@ -436,21 +438,23 @@ func TestGetURL_RepositoryInteraction(t *testing.T) {
 
 	// Act
 	usecase.GetURL(w, req)
-
-	// Assert
-	assert.Equal(t, 1, callCount, "Expected repository to be called once")
 }
 
 // TestGetURL_ConcurrentRequests проверяет обработку параллельных запросов
 func TestGetURL_ConcurrentRequests(t *testing.T) {
 	// Arrange
-	mockRepo := &MockRepository{
-		GetURLByCodeFunc: func(code model.Code) (model.URL, error) {
-			return model.URL("https://example.com/" + string(code)), nil
-		},
+	mockRepo := mocks.NewMockURLRepository(t)
+	mockService := mocks.NewMockURLService(t)
+	// Ожидаем 10 различных вызовов
+	for i := 0; i < 10; i++ {
+		code := string(rune('a' + i))
+		mockRepo.EXPECT().
+			GetURLByCode(model.Code(code)).
+			Return(model.URL("https://example.com/"+code), nil).
+			Once()
 	}
 
-	usecase := New(mockRepo)
+	usecase := New(mockRepo, mockService)
 
 	// Act & Assert - запускаем несколько параллельных запросов
 	done := make(chan bool)
@@ -471,7 +475,7 @@ func TestGetURL_ConcurrentRequests(t *testing.T) {
 			resp := w.Result()
 			defer resp.Body.Close()
 
-			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode, 
+			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode,
 				"Request %d: Expected status %d", index, http.StatusTemporaryRedirect)
 
 			done <- true

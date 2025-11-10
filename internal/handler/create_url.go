@@ -3,10 +3,10 @@ package handler
 import (
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/model"
-	"github.com/avc-dev/url-shortener/internal/service"
 )
 
 func (u *Usecase) CreateURL(w http.ResponseWriter, req *http.Request) {
@@ -16,17 +16,30 @@ func (u *Usecase) CreateURL(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	url := string(body)
-	code, err := service.GenerateCode(
-		func(code string) error {
-			return u.repo.CreateURL(model.Code(code), model.URL(url))
-		})
+	originalURL := model.URL(body)
+
+	// Генерируем уникальный код через service layer
+	code, err := u.service.CreateShortURL(originalURL)
 	if err != nil {
-		w.WriteHeader(http.StatusLoopDetected)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
+	// Сохраняем в репозиторий
+	if err := u.repo.CreateURL(code, originalURL); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Формируем ответ
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 
-	w.Write([]byte(config.BaseURL.String() + code))
+	shortURL, err := url.JoinPath(config.BaseURL.String(), string(code))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Write([]byte(shortURL))
 }

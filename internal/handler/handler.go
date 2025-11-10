@@ -9,10 +9,18 @@ type URLRepository interface {
 	GetURLByCode(code model.Code) (model.URL, error)
 }
 
-type Usecase struct {
-	repo URLRepository
+type URLService interface {
+	CreateShortURL(originalURL model.URL) (model.Code, error)
 }
 
-func New(repo URLRepository) *Usecase {
-	return &Usecase{repo}
+type Usecase struct {
+	repo    URLRepository
+	service URLService
+}
+
+func New(repo URLRepository, service URLService) *Usecase {
+	return &Usecase{
+		repo:    repo,
+		service: service,
+	}
 }
