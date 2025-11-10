@@ -42,8 +42,8 @@ func (s *Store) Write(key model.Code, value model.URL) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	_, err := s.Read(key)
-	if err == nil {
+	// Проверяем существование ключа напрямую, без вызова Read (чтобы избежать deadlock)
+	if _, exists := s.store[key]; exists {
 		return fmt.Errorf("key %s: %w", key, ErrAlreadyExists)
 	}
 
