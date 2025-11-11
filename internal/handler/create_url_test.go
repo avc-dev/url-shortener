@@ -57,14 +57,10 @@ func TestCreateURL_Success(t *testing.T) {
 			mockService := mocks.NewMockURLService(t)
 
 			generatedCode := model.Code("testcode")
+
 			mockService.EXPECT().
 				CreateShortURL(model.URL(tt.originalURL)).
 				Return(generatedCode, nil).
-				Once()
-
-			mockRepo.EXPECT().
-				CreateURL(generatedCode, model.URL(tt.originalURL)).
-				Return(nil).
 				Once()
 
 			usecase := New(mockRepo, mockService)
@@ -105,14 +101,10 @@ func TestCreateURL_EmptyBody(t *testing.T) {
 	mockService := mocks.NewMockURLService(t)
 
 	generatedCode := model.Code("testcode")
+
 	mockService.EXPECT().
 		CreateShortURL(model.URL("")).
 		Return(generatedCode, nil).
-		Once()
-
-	mockRepo.EXPECT().
-		CreateURL(generatedCode, model.URL("")).
-		Return(nil).
 		Once()
 
 	usecase := New(mockRepo, mockService)
@@ -156,13 +148,13 @@ func TestCreateURL_ReadBodyError(t *testing.T) {
 	mockService.AssertNotCalled(t, "CreateShortURL")
 }
 
-// TestCreateURL_GenerateCodeError проверяет обработку ошибки генерации кода
-func TestCreateURL_GenerateCodeError(t *testing.T) {
+// TestCreateURL_ServiceError проверяет обработку ошибки от service
+func TestCreateURL_ServiceError(t *testing.T) {
 	// Arrange
 	mockRepo := mocks.NewMockURLRepository(t)
 	mockService := mocks.NewMockURLService(t)
 
-	// Service возвращает ошибку при генерации кода
+	// Service возвращает ошибку (может быть из-за коллизий или ошибок БД)
 	mockService.EXPECT().
 		CreateShortURL(model.URL("https://example.com")).
 		Return(model.Code(""), errors.New("could not generate unique code")).
@@ -182,26 +174,28 @@ func TestCreateURL_GenerateCodeError(t *testing.T) {
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-
-	// Репозиторий не должен вызываться если генерация кода провалилась
-	mockRepo.AssertNotCalled(t, "CreateURL")
 }
 
-// TestCreateURL_RepositoryError проверяет обработку других ошибок репозитория
-func TestCreateURL_RepositoryError(t *testing.T) {
+// TestCreateURL_ServiceVariousErrors проверяет обработку различных ошибок от service
+func TestCreateURL_ServiceVariousErrors(t *testing.T) {
 	tests := []struct {
 		name           string
-		repoError      error
+		serviceError   error
 		expectedStatus int
 	}{
 		{
-			name:           "Repository error database",
-			repoError:      errors.New("database error"),
+			name:           "Database error from service",
+			serviceError:   errors.New("database error"),
 			expectedStatus: http.StatusInternalServerError,
 		},
 		{
-			name:           "Repository error connection timeout",
-			repoError:      errors.New("connection timeout"),
+			name:           "Connection timeout from service",
+			serviceError:   errors.New("connection timeout"),
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "Max retries exceeded",
+			serviceError:   errors.New("max retries exceeded"),
 			expectedStatus: http.StatusInternalServerError,
 		},
 	}
@@ -212,15 +206,9 @@ func TestCreateURL_RepositoryError(t *testing.T) {
 			mockRepo := mocks.NewMockURLRepository(t)
 			mockService := mocks.NewMockURLService(t)
 
-			generatedCode := model.Code("testcode")
 			mockService.EXPECT().
 				CreateShortURL(model.URL("https://example.com")).
-				Return(generatedCode, nil).
-				Once()
-
-			mockRepo.EXPECT().
-				CreateURL(generatedCode, model.URL("https://example.com")).
-				Return(tt.repoError).
+				Return(model.Code(""), tt.serviceError).
 				Once()
 
 			usecase := New(mockRepo, mockService)
@@ -282,14 +270,10 @@ func TestCreateURL_BoundaryConditions(t *testing.T) {
 			mockService := mocks.NewMockURLService(t)
 
 			generatedCode := model.Code("testcode")
+
 			mockService.EXPECT().
 				CreateShortURL(model.URL(tt.url)).
 				Return(generatedCode, nil).
-				Once()
-
-			mockRepo.EXPECT().
-				CreateURL(generatedCode, model.URL(tt.url)).
-				Return(nil).
 				Once()
 
 			usecase := New(mockRepo, mockService)

@@ -8,53 +8,71 @@ import (
 
 	"github.com/avc-dev/url-shortener/internal/mocks"
 	"github.com/avc-dev/url-shortener/internal/model"
+	"github.com/avc-dev/url-shortener/internal/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// TestGenerateUniqueCode_Success проверяет успешную генерацию кода
-func TestGenerateUniqueCode_Success(t *testing.T) {
-	tests := []struct {
-		name string
-	}{
-		{
-			name: "First attempt success",
-		},
-		{
-			name: "Generate multiple times",
-		},
-	}
+// TestCreateShortURL_Success проверяет успешное создание короткого URL с первой попытки
+func TestCreateShortURL_Success(t *testing.T) {
+	// Arrange
+	mockRepo := mocks.NewMockURLRepository(t)
+	mockRepo.EXPECT().
+		CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
+		Return(nil).
+		Once()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Arrange
-			mockChecker := mocks.NewMockCodeChecker(t)
-			mockChecker.EXPECT().
-				Exists(mock.AnythingOfType("model.Code")).
-				Return(false, nil)
+	service := NewURLService(mockRepo)
+	originalURL := model.URL("https://example.com")
 
-			service := NewURLService(mockChecker)
+	// Act
+	code, err := service.CreateShortURL(originalURL)
 
-			// Act
-			code, err := service.GenerateUniqueCode()
+	// Assert
+	require.NoError(t, err)
+	assert.NotEmpty(t, code)
+	assert.Equal(t, CodeLength, len(code))
 
-			// Assert
-			require.NoError(t, err)
-			assert.NotEmpty(t, code)
-			assert.Equal(t, CodeLength, len(code))
-
-			// Проверяем что код содержит только разрешенные символы
-			for _, char := range code {
-				assert.True(t, strings.ContainsRune(AllowedChars, char),
-					"Code contains invalid character: %c", char)
-			}
-		})
+	// Проверяем что код содержит только разрешенные символы
+	for _, char := range code {
+		assert.True(t, strings.ContainsRune(AllowedChars, char),
+			"Code contains invalid character: %c", char)
 	}
 }
 
-// TestGenerateUniqueCode_SuccessAfterRetries проверяет успех после нескольких попыток
-func TestGenerateUniqueCode_SuccessAfterRetries(t *testing.T) {
+// TestCreateShortURL_SuccessAfterCollision проверяет успех после одной коллизии
+func TestCreateShortURL_SuccessAfterCollision(t *testing.T) {
+	// Arrange
+	mockRepo := mocks.NewMockURLRepository(t)
+	attemptCount := 0
+
+	mockRepo.EXPECT().
+		CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
+		RunAndReturn(func(code model.Code, url model.URL) error {
+			attemptCount++
+			if attemptCount == 1 {
+				return store.ErrAlreadyExists
+			}
+			return nil
+		}).
+		Maybe()
+
+	service := NewURLService(mockRepo)
+	originalURL := model.URL("https://example.com")
+
+	// Act
+	code, err := service.CreateShortURL(originalURL)
+
+	// Assert
+	require.NoError(t, err)
+	assert.NotEmpty(t, code)
+	assert.Equal(t, CodeLength, len(code))
+	assert.Equal(t, 2, attemptCount)
+}
+
+// TestCreateShortURL_SuccessAfterMultipleCollisions проверяет успех после нескольких коллизий
+func TestCreateShortURL_SuccessAfterMultipleCollisions(t *testing.T) {
 	tests := []struct {
 		name             string
 		failUntilAttempt int
@@ -80,75 +98,84 @@ func TestGenerateUniqueCode_SuccessAfterRetries(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockChecker := mocks.NewMockCodeChecker(t)
+			mockRepo := mocks.NewMockURLRepository(t)
 			attemptCount := 0
 
-			mockChecker.EXPECT().
-				Exists(mock.AnythingOfType("model.Code")).
-				RunAndReturn(func(code model.Code) (bool, error) {
+			mockRepo.EXPECT().
+				CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
+				RunAndReturn(func(code model.Code, url model.URL) error {
 					attemptCount++
-					return attemptCount < tt.failUntilAttempt, nil // true = существует
+					if attemptCount < tt.failUntilAttempt {
+						return store.ErrAlreadyExists
+					}
+					return nil
 				}).
-				Maybe() // Может вызваться много раз
+				Maybe()
 
-			service := NewURLService(mockChecker)
+			service := NewURLService(mockRepo)
+			originalURL := model.URL("https://example.com")
 
 			// Act
-			code, err := service.GenerateUniqueCode()
+			code, err := service.CreateShortURL(originalURL)
 
 			// Assert
 			require.NoError(t, err)
 			assert.NotEmpty(t, code)
 			assert.Equal(t, CodeLength, len(code))
-			assert.GreaterOrEqual(t, attemptCount, tt.failUntilAttempt)
+			assert.Equal(t, tt.failUntilAttempt, attemptCount)
 		})
 	}
 }
 
-// TestGenerateUniqueCode_MaxTriesExceeded проверяет исчерпание попыток
-func TestGenerateUniqueCode_MaxTriesExceeded(t *testing.T) {
+// TestCreateShortURL_MaxRetriesExceeded проверяет исчерпание попыток
+func TestCreateShortURL_MaxRetriesExceeded(t *testing.T) {
 	// Arrange
-	mockChecker := mocks.NewMockCodeChecker(t)
+	mockRepo := mocks.NewMockURLRepository(t)
 	attemptCount := 0
 
-	mockChecker.EXPECT().
-		Exists(mock.AnythingOfType("model.Code")).
-		RunAndReturn(func(code model.Code) (bool, error) {
+	mockRepo.EXPECT().
+		CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
+		RunAndReturn(func(code model.Code, url model.URL) error {
 			attemptCount++
-			return true, nil // Всегда возвращаем что код существует
+			return store.ErrAlreadyExists // Всегда коллизия
 		}).
 		Maybe()
 
-	service := NewURLService(mockChecker)
+	service := NewURLService(mockRepo)
+	originalURL := model.URL("https://example.com")
 
 	// Act
-	code, err := service.GenerateUniqueCode()
+	code, err := service.CreateShortURL(originalURL)
 
 	// Assert
 	require.Error(t, err)
 	assert.Empty(t, code)
 	assert.Equal(t, MaxTries, attemptCount)
-	assert.Contains(t, err.Error(), "could not generate unique code")
+	assert.ErrorIs(t, err, ErrMaxRetriesExceeded)
 }
 
-// TestGenerateUniqueCode_MaxTriesExactly проверяет успех на последней попытке
-func TestGenerateUniqueCode_MaxTriesExactly(t *testing.T) {
+// TestCreateShortURL_SuccessOnLastAttempt проверяет успех на последней попытке
+func TestCreateShortURL_SuccessOnLastAttempt(t *testing.T) {
 	// Arrange
-	mockChecker := mocks.NewMockCodeChecker(t)
+	mockRepo := mocks.NewMockURLRepository(t)
 	attemptCount := 0
 
-	mockChecker.EXPECT().
-		Exists(mock.AnythingOfType("model.Code")).
-		RunAndReturn(func(code model.Code) (bool, error) {
+	mockRepo.EXPECT().
+		CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
+		RunAndReturn(func(code model.Code, url model.URL) error {
 			attemptCount++
-			return attemptCount < MaxTries, nil // Успех только на последней попытке
+			if attemptCount < MaxTries {
+				return store.ErrAlreadyExists
+			}
+			return nil
 		}).
 		Maybe()
 
-	service := NewURLService(mockChecker)
+	service := NewURLService(mockRepo)
+	originalURL := model.URL("https://example.com")
 
 	// Act
-	code, err := service.GenerateUniqueCode()
+	code, err := service.CreateShortURL(originalURL)
 
 	// Assert
 	require.NoError(t, err)
@@ -156,51 +183,86 @@ func TestGenerateUniqueCode_MaxTriesExactly(t *testing.T) {
 	assert.Equal(t, MaxTries, attemptCount)
 }
 
-// TestGenerateUniqueCode_CodeUniqueness проверяет что генерируются разные коды
-func TestGenerateUniqueCode_CodeUniqueness(t *testing.T) {
+// TestCreateShortURL_DatabaseError проверяет немедленный возврат при ошибке БД
+func TestCreateShortURL_DatabaseError(t *testing.T) {
 	// Arrange
-	numCodes := 100
-	generatedCodes := make(map[model.Code]bool)
+	dbError := errors.New("database connection failed")
+	mockRepo := mocks.NewMockURLRepository(t)
+	attemptCount := 0
 
-	mockChecker := mocks.NewMockCodeChecker(t)
-	mockChecker.EXPECT().
-		Exists(mock.AnythingOfType("model.Code")).
-		Return(false, nil).
-		Maybe()
+	mockRepo.EXPECT().
+		CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
+		RunAndReturn(func(code model.Code, url model.URL) error {
+			attemptCount++
+			return dbError
+		}).
+		Once()
 
-	service := NewURLService(mockChecker)
+	service := NewURLService(mockRepo)
+	originalURL := model.URL("https://example.com")
 
-	// Act - генерируем множество кодов
-	for i := 0; i < numCodes; i++ {
-		code, err := service.GenerateUniqueCode()
-		require.NoError(t, err)
-		generatedCodes[code] = true
-	}
+	// Act
+	code, err := service.CreateShortURL(originalURL)
 
-	// Assert - проверяем что большинство кодов уникальны
-	uniqueCount := len(generatedCodes)
-	minExpectedUnique := int(float64(numCodes) * 0.95)
-
-	assert.GreaterOrEqual(t, uniqueCount, minExpectedUnique,
-		"Expected at least %d unique codes out of %d", minExpectedUnique, numCodes)
+	// Assert
+	require.Error(t, err)
+	assert.Empty(t, code)
+	assert.Equal(t, 1, attemptCount, "Should stop immediately on non-collision error")
+	assert.ErrorIs(t, err, dbError)
 }
 
-// TestGenerateUniqueCode_CodeFormat проверяет формат сгенерированного кода
-func TestGenerateUniqueCode_CodeFormat(t *testing.T) {
+// TestCreateShortURL_CollisionThenDatabaseError проверяет обработку коллизии затем ошибки БД
+func TestCreateShortURL_CollisionThenDatabaseError(t *testing.T) {
 	// Arrange
-	numTests := 50
+	dbError := errors.New("database error")
+	mockRepo := mocks.NewMockURLRepository(t)
+	attemptCount := 0
 
-	mockChecker := mocks.NewMockCodeChecker(t)
-	mockChecker.EXPECT().
-		Exists(mock.AnythingOfType("model.Code")).
-		Return(false, nil).
+	mockRepo.EXPECT().
+		CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
+		RunAndReturn(func(code model.Code, url model.URL) error {
+			attemptCount++
+			if attemptCount <= 3 {
+				return store.ErrAlreadyExists
+			}
+			return dbError
+		}).
 		Maybe()
 
-	service := NewURLService(mockChecker)
+	service := NewURLService(mockRepo)
+	originalURL := model.URL("https://example.com")
+
+	// Act
+	code, err := service.CreateShortURL(originalURL)
+
+	// Assert
+	require.Error(t, err)
+	assert.Empty(t, code)
+	assert.Equal(t, 4, attemptCount)
+	assert.ErrorIs(t, err, dbError)
+}
+
+// TestCreateShortURL_CodeFormat проверяет формат сгенерированных кодов
+func TestCreateShortURL_CodeFormat(t *testing.T) {
+	// Arrange
+	numTests := 50
+	var generatedCodes []model.Code
+
+	mockRepo := mocks.NewMockURLRepository(t)
+	mockRepo.EXPECT().
+		CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
+		RunAndReturn(func(code model.Code, url model.URL) error {
+			generatedCodes = append(generatedCodes, code)
+			return nil
+		}).
+		Times(numTests)
+
+	service := NewURLService(mockRepo)
+	originalURL := model.URL("https://example.com")
 
 	// Act & Assert
 	for i := 0; i < numTests; i++ {
-		code, err := service.GenerateUniqueCode()
+		code, err := service.CreateShortURL(originalURL)
 		require.NoError(t, err)
 
 		// Проверяем длину
@@ -223,78 +285,56 @@ func TestGenerateUniqueCode_CodeFormat(t *testing.T) {
 	}
 }
 
-// TestGenerateUniqueCode_CheckerError проверяет обработку ошибок от checker
-func TestGenerateUniqueCode_CheckerError(t *testing.T) {
-	tests := []struct {
-		name          string
-		checkerError  error
-		failUntil     int
-		expectSuccess bool
-	}{
-		{
-			name:          "Database error then success",
-			checkerError:  errors.New("database connection failed"),
-			failUntil:     3,
-			expectSuccess: true,
-		},
-		{
-			name:          "Temporary error then success",
-			checkerError:  errors.New("temporary error"),
-			failUntil:     5,
-			expectSuccess: true,
-		},
+// TestCreateShortURL_CodeUniqueness проверяет что генерируются разные коды
+func TestCreateShortURL_CodeUniqueness(t *testing.T) {
+	// Arrange
+	numCodes := 100
+	generatedCodes := make(map[model.Code]bool)
+
+	mockRepo := mocks.NewMockURLRepository(t)
+	mockRepo.EXPECT().
+		CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
+		RunAndReturn(func(code model.Code, url model.URL) error {
+			generatedCodes[code] = true
+			return nil
+		}).
+		Times(numCodes)
+
+	service := NewURLService(mockRepo)
+	originalURL := model.URL("https://example.com")
+
+	// Act - генерируем множество кодов
+	for i := 0; i < numCodes; i++ {
+		_, err := service.CreateShortURL(originalURL)
+		require.NoError(t, err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Arrange
-			mockChecker := mocks.NewMockCodeChecker(t)
-			attemptCount := 0
+	// Assert - проверяем что большинство кодов уникальны
+	uniqueCount := len(generatedCodes)
+	minExpectedUnique := int(float64(numCodes) * 0.95)
 
-			mockChecker.EXPECT().
-				Exists(mock.AnythingOfType("model.Code")).
-				RunAndReturn(func(code model.Code) (bool, error) {
-					attemptCount++
-					if attemptCount <= tt.failUntil {
-						return false, tt.checkerError
-					}
-					return false, nil
-				}).
-				Maybe()
-
-			service := NewURLService(mockChecker)
-
-			// Act
-			code, err := service.GenerateUniqueCode()
-
-			// Assert
-			if tt.expectSuccess {
-				require.NoError(t, err)
-				assert.NotEmpty(t, code)
-			} else {
-				require.Error(t, err)
-			}
-		})
-	}
+	assert.GreaterOrEqual(t, uniqueCount, minExpectedUnique,
+		"Expected at least %d unique codes out of %d", minExpectedUnique, numCodes)
 }
 
-// TestGenerateUniqueCode_CodeCharacterDistribution проверяет распределение символов
-func TestGenerateUniqueCode_CodeCharacterDistribution(t *testing.T) {
+// TestCreateShortURL_CodeCharacterDistribution проверяет распределение символов
+func TestCreateShortURL_CodeCharacterDistribution(t *testing.T) {
 	// Arrange
 	numCodes := 1000
 	charCount := make(map[rune]int)
 
-	mockChecker := mocks.NewMockCodeChecker(t)
-	mockChecker.EXPECT().
-		Exists(mock.AnythingOfType("model.Code")).
-		Return(false, nil).
-		Maybe()
+	mockRepo := mocks.NewMockURLRepository(t)
+	mockRepo.EXPECT().
+		CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
+		Return(nil).
+		Times(numCodes)
 
-	service := NewURLService(mockChecker)
+	service := NewURLService(mockRepo)
+	originalURL := model.URL("https://example.com")
 
 	// Act - генерируем много кодов и считаем символы
 	for i := 0; i < numCodes; i++ {
-		code, err := service.GenerateUniqueCode()
+		code, err := service.CreateShortURL(originalURL)
 		require.NoError(t, err)
 
 		for _, char := range code {
@@ -316,8 +356,8 @@ func TestGenerateUniqueCode_CodeCharacterDistribution(t *testing.T) {
 	}
 }
 
-// TestGenerateUniqueCode_Constants проверяет константы
-func TestGenerateUniqueCode_Constants(t *testing.T) {
+// TestCreateShortURL_Constants проверяет константы
+func TestCreateShortURL_Constants(t *testing.T) {
 	// Проверяем что константы имеют разумные значения
 	assert.Greater(t, CodeLength, 0, "CodeLength should be positive")
 	assert.Greater(t, MaxTries, 0, "MaxTries should be positive")
@@ -329,30 +369,31 @@ func TestGenerateUniqueCode_Constants(t *testing.T) {
 	assert.Equal(t, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", AllowedChars)
 }
 
-// TestGenerateUniqueCode_ConcurrentGeneration проверяет параллельную генерацию
-func TestGenerateUniqueCode_ConcurrentGeneration(t *testing.T) {
+// TestCreateShortURL_ConcurrentGeneration проверяет параллельное создание
+func TestCreateShortURL_ConcurrentGeneration(t *testing.T) {
 	// Arrange
 	numGoroutines := 50
 	results := make(chan model.Code, numGoroutines)
-	errors := make(chan error, numGoroutines)
+	errorsChan := make(chan error, numGoroutines)
 	wg := sync.WaitGroup{}
 	wg.Add(numGoroutines)
 
-	mockChecker := mocks.NewMockCodeChecker(t)
-	mockChecker.EXPECT().
-		Exists(mock.AnythingOfType("model.Code")).
-		Return(false, nil).
-		Maybe()
+	mockRepo := mocks.NewMockURLRepository(t)
+	mockRepo.EXPECT().
+		CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
+		Return(nil).
+		Times(numGoroutines)
 
-	service := NewURLService(mockChecker)
+	service := NewURLService(mockRepo)
+	originalURL := model.URL("https://example.com")
 
-	// Act - запускаем параллельную генерацию
+	// Act - запускаем параллельное создание
 	for i := 0; i < numGoroutines; i++ {
 		go func() {
 			defer wg.Done()
-			code, err := service.GenerateUniqueCode()
+			code, err := service.CreateShortURL(originalURL)
 			if err != nil {
-				errors <- err
+				errorsChan <- err
 			} else {
 				results <- code
 			}
@@ -361,7 +402,7 @@ func TestGenerateUniqueCode_ConcurrentGeneration(t *testing.T) {
 
 	wg.Wait()
 	close(results)
-	close(errors)
+	close(errorsChan)
 
 	// Assert - собираем результаты
 	generatedCodes := make(map[model.Code]bool)
@@ -370,7 +411,7 @@ func TestGenerateUniqueCode_ConcurrentGeneration(t *testing.T) {
 		generatedCodes[code] = true
 	}
 
-	for err := range errors {
+	for err := range errorsChan {
 		t.Errorf("Got error during concurrent generation: %v", err)
 	}
 
@@ -382,44 +423,53 @@ func TestGenerateUniqueCode_ConcurrentGeneration(t *testing.T) {
 		"Expected at least %d unique codes out of %d", minExpectedUnique, numGoroutines)
 }
 
-// TestCreateShortURL_Success проверяет успешное создание короткого URL
-func TestCreateShortURL_Success(t *testing.T) {
-	// Arrange
-	mockChecker := mocks.NewMockCodeChecker(t)
-	mockChecker.EXPECT().
-		Exists(mock.AnythingOfType("model.Code")).
-		Return(false, nil)
+// TestCreateShortURL_DifferentURLs проверяет создание для разных URL
+func TestCreateShortURL_DifferentURLs(t *testing.T) {
+	tests := []struct {
+		name string
+		url  model.URL
+	}{
+		{
+			name: "Simple URL",
+			url:  model.URL("https://example.com"),
+		},
+		{
+			name: "URL with path",
+			url:  model.URL("https://example.com/path/to/page"),
+		},
+		{
+			name: "URL with query",
+			url:  model.URL("https://example.com?query=param"),
+		},
+		{
+			name: "Long URL",
+			url:  model.URL("https://example.com/very/long/path/with/many/segments/and/parameters?foo=bar&baz=qux"),
+		},
+	}
 
-	service := NewURLService(mockChecker)
-	originalURL := model.URL("https://example.com")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			mockRepo := mocks.NewMockURLRepository(t)
+			var savedURL model.URL
 
-	// Act
-	code, err := service.CreateShortURL(originalURL)
+			mockRepo.EXPECT().
+				CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
+				RunAndReturn(func(code model.Code, url model.URL) error {
+					savedURL = url
+					return nil
+				}).
+				Once()
 
-	// Assert
-	require.NoError(t, err)
-	assert.NotEmpty(t, code)
-	assert.Equal(t, CodeLength, len(code))
-}
+			service := NewURLService(mockRepo)
 
-// TestCreateShortURL_GenerationFails проверяет ошибку при генерации кода
-func TestCreateShortURL_GenerationFails(t *testing.T) {
-	// Arrange
-	mockChecker := mocks.NewMockCodeChecker(t)
-	// Все коды заняты
-	mockChecker.EXPECT().
-		Exists(mock.AnythingOfType("model.Code")).
-		Return(true, nil).
-		Maybe()
+			// Act
+			code, err := service.CreateShortURL(tt.url)
 
-	service := NewURLService(mockChecker)
-	originalURL := model.URL("https://example.com")
-
-	// Act
-	code, err := service.CreateShortURL(originalURL)
-
-	// Assert
-	require.Error(t, err)
-	assert.Empty(t, code)
-	assert.Contains(t, err.Error(), "failed to generate unique code")
+			// Assert
+			require.NoError(t, err)
+			assert.NotEmpty(t, code)
+			assert.Equal(t, tt.url, savedURL)
+		})
+	}
 }

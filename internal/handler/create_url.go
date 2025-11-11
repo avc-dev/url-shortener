@@ -18,15 +18,9 @@ func (u *Usecase) CreateURL(w http.ResponseWriter, req *http.Request) {
 
 	originalURL := model.URL(body)
 
-	// Генерируем уникальный код через service layer
+	// Генерируем уникальный код и сохраняем через service layer
 	code, err := u.service.CreateShortURL(originalURL)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	// Сохраняем в репозиторий
-	if err := u.repo.CreateURL(code, originalURL); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

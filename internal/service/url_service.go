@@ -1,10 +1,12 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 
 	"github.com/avc-dev/url-shortener/internal/model"
+	"github.com/avc-dev/url-shortener/internal/store"
 )
 
 const (
@@ -15,12 +17,12 @@ const (
 
 // URLService содержит бизнес-логику для работы с короткими URL
 type URLService struct {
-	checker CodeChecker
+	repo URLRepository
 }
 
 // NewURLService создает новый экземпляр URLService
-func NewURLService(checker CodeChecker) *URLService {
-	return &URLService{checker: checker}
+func NewURLService(repo URLRepository) *URLService {
+	return &URLService{repo: repo}
 }
 
 // randomString генерирует случайную строку заданной длины
@@ -34,33 +36,26 @@ func randomString() string {
 	return string(result)
 }
 
-// GenerateUniqueCode генерирует уникальный код, проверяя его существование в хранилище
-// Возвращает ошибку если не удалось сгенерировать уникальный код за MaxTries попыток
-func (s *URLService) GenerateUniqueCode() (model.Code, error) {
+// CreateShortURL - основная бизнес-логика для создания короткого URL
+// Генерирует уникальный код и сохраняет его вместе с оригинальным URL
+// Использует retry механизм для обработки коллизий кодов
+func (s *URLService) CreateShortURL(originalURL model.URL) (model.Code, error) {
 	for tries := 0; tries < MaxTries; tries++ {
 		code := model.Code(randomString())
 
-		exists, err := s.checker.Exists(code)
+		err := s.repo.CreateURL(code, originalURL)
 		if err != nil {
-			// Логируем ошибку, но продолжаем попытки
-			continue
+			// Если коллизия - пробуем еще раз
+			if errors.Is(err, store.ErrAlreadyExists) {
+				continue
+			}
+			// Любая другая ошибка - возвращаем сразу
+			return "", fmt.Errorf("failed to create URL: %w", err)
 		}
 
-		if !exists {
-			return code, nil
-		}
+		// Успешно сохранили
+		return code, nil
 	}
 
-	return "", fmt.Errorf("could not generate unique code after %d tries", MaxTries)
-}
-
-// CreateShortURL - основная бизнес-логика для создания короткого URL
-// Генерирует уникальный код для переданного оригинального URL
-func (s *URLService) CreateShortURL(originalURL model.URL) (model.Code, error) {
-	code, err := s.GenerateUniqueCode()
-	if err != nil {
-		return "", fmt.Errorf("failed to generate unique code: %w", err)
-	}
-
-	return code, nil
+	return "", fmt.Errorf("%w: after %d tries", ErrMaxRetriesExceeded, MaxTries)
 }
