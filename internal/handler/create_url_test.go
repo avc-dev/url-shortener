@@ -18,6 +18,8 @@ import (
 
 // TestCreateURL_Success проверяет успешное создание короткого URL
 func TestCreateURL_Success(t *testing.T) {
+	testCfg := config.NewDefaultConfig()
+
 	tests := []struct {
 		name           string
 		originalURL    string
@@ -28,25 +30,25 @@ func TestCreateURL_Success(t *testing.T) {
 			name:           "Valid HTTP URL",
 			originalURL:    "https://example.com",
 			expectedStatus: http.StatusCreated,
-			expectedPrefix: config.BaseURL.String(),
+			expectedPrefix: testCfg.BaseURL.String(),
 		},
 		{
 			name:           "Valid HTTPS URL with path",
 			originalURL:    "https://example.com/some/path?query=param",
 			expectedStatus: http.StatusCreated,
-			expectedPrefix: config.BaseURL.String(),
+			expectedPrefix: testCfg.BaseURL.String(),
 		},
 		{
 			name:           "Long URL",
 			originalURL:    "https://example.com/very/long/path/that/goes/on/and/on/with/many/segments",
 			expectedStatus: http.StatusCreated,
-			expectedPrefix: config.BaseURL.String(),
+			expectedPrefix: testCfg.BaseURL.String(),
 		},
 		{
 			name:           "URL with special characters",
 			originalURL:    "https://example.com/path?param=value&other=test#anchor",
 			expectedStatus: http.StatusCreated,
-			expectedPrefix: config.BaseURL.String(),
+			expectedPrefix: testCfg.BaseURL.String(),
 		},
 	}
 
@@ -63,7 +65,7 @@ func TestCreateURL_Success(t *testing.T) {
 				Return(generatedCode, nil).
 				Once()
 
-			usecase := New(mockRepo, mockService)
+			usecase := New(mockRepo, mockService, testCfg)
 
 			body := bytes.NewBufferString(tt.originalURL)
 			req := httptest.NewRequest(http.MethodPost, "/", body)
@@ -96,6 +98,8 @@ func TestCreateURL_Success(t *testing.T) {
 
 // TestCreateURL_EmptyBody проверяет обработку пустого body
 func TestCreateURL_EmptyBody(t *testing.T) {
+	testCfg := config.NewDefaultConfig()
+
 	// Arrange
 	mockRepo := mocks.NewMockURLRepository(t)
 	mockService := mocks.NewMockURLService(t)
@@ -107,7 +111,7 @@ func TestCreateURL_EmptyBody(t *testing.T) {
 		Return(generatedCode, nil).
 		Once()
 
-	usecase := New(mockRepo, mockService)
+	usecase := New(mockRepo, mockService, testCfg)
 
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(""))
 	w := httptest.NewRecorder()
@@ -125,10 +129,12 @@ func TestCreateURL_EmptyBody(t *testing.T) {
 
 // TestCreateURL_ReadBodyError проверяет обработку ошибки чтения body
 func TestCreateURL_ReadBodyError(t *testing.T) {
+	testCfg := config.NewDefaultConfig()
+
 	// Arrange
 	mockRepo := mocks.NewMockURLRepository(t)
 	mockService := mocks.NewMockURLService(t)
-	usecase := New(mockRepo, mockService)
+	usecase := New(mockRepo, mockService, testCfg)
 
 	// Создаем reader который всегда возвращает ошибку
 	errorReader := &errorReader{err: errors.New("read error")}
@@ -150,6 +156,8 @@ func TestCreateURL_ReadBodyError(t *testing.T) {
 
 // TestCreateURL_ServiceError проверяет обработку ошибки от service
 func TestCreateURL_ServiceError(t *testing.T) {
+	testCfg := config.NewDefaultConfig()
+
 	// Arrange
 	mockRepo := mocks.NewMockURLRepository(t)
 	mockService := mocks.NewMockURLService(t)
@@ -160,7 +168,7 @@ func TestCreateURL_ServiceError(t *testing.T) {
 		Return(model.Code(""), errors.New("could not generate unique code")).
 		Once()
 
-	usecase := New(mockRepo, mockService)
+	usecase := New(mockRepo, mockService, testCfg)
 
 	body := bytes.NewBufferString("https://example.com")
 	req := httptest.NewRequest(http.MethodPost, "/", body)
@@ -178,6 +186,8 @@ func TestCreateURL_ServiceError(t *testing.T) {
 
 // TestCreateURL_ServiceVariousErrors проверяет обработку различных ошибок от service
 func TestCreateURL_ServiceVariousErrors(t *testing.T) {
+	testCfg := config.NewDefaultConfig()
+
 	tests := []struct {
 		name           string
 		serviceError   error
@@ -211,7 +221,7 @@ func TestCreateURL_ServiceVariousErrors(t *testing.T) {
 				Return(model.Code(""), tt.serviceError).
 				Once()
 
-			usecase := New(mockRepo, mockService)
+			usecase := New(mockRepo, mockService, testCfg)
 
 			body := bytes.NewBufferString("https://example.com")
 			req := httptest.NewRequest(http.MethodPost, "/", body)
@@ -231,6 +241,8 @@ func TestCreateURL_ServiceVariousErrors(t *testing.T) {
 
 // TestCreateURL_BoundaryConditions проверяет граничные условия
 func TestCreateURL_BoundaryConditions(t *testing.T) {
+	testCfg := config.NewDefaultConfig()
+
 	tests := []struct {
 		name           string
 		url            string
@@ -276,7 +288,7 @@ func TestCreateURL_BoundaryConditions(t *testing.T) {
 				Return(generatedCode, nil).
 				Once()
 
-			usecase := New(mockRepo, mockService)
+			usecase := New(mockRepo, mockService, testCfg)
 
 			body := bytes.NewBufferString(tt.url)
 			req := httptest.NewRequest(http.MethodPost, "/", body)

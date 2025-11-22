@@ -3,59 +3,48 @@ package config
 import (
 	"flag"
 	"fmt"
-	"strconv"
-	"strings"
+
+	"github.com/caarlos0/env/v11"
 )
 
-type NetworkAddress struct {
-	Host string
-	Port int
+type Config struct {
+	ServerAddress NetworkAddress `env:"SERVER_ADDRESS"`
+	BaseURL       URLPrefix      `env:"BASE_URL"`
 }
 
-func (a NetworkAddress) String() string {
-	return a.Host + ":" + strconv.Itoa(a.Port)
+// NewDefaultConfig возвращает конфигурацию со значениями по умолчанию
+func NewDefaultConfig() *Config {
+	return &Config{
+		ServerAddress: NetworkAddress{Host: "localhost", Port: 8080},
+		BaseURL:       URLPrefix("http://localhost:8080/"),
+	}
 }
 
-func (a *NetworkAddress) Set(value string) error {
-	parts := strings.Split(value, ":")
+// Load загружает конфигурацию с учётом приоритетов:
+// 1. ENV переменные (высший приоритет)
+// 2. Флаги командной строки
+// 3. Значения по умолчанию (низший приоритет)
+func Load() (*Config, error) {
+	cfg := NewDefaultConfig()
 
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid network address format: %s", value)
+	addrFlag := flag.String("a", "", "address to run HTTP server")
+	baseURLFlag := flag.String("b", "", "base URL for shortened URL")
+	flag.Parse()
+
+	if *addrFlag != "" {
+		if err := cfg.ServerAddress.Set(*addrFlag); err != nil {
+			return nil, fmt.Errorf("invalid server address flag: %w", err)
+		}
+	}
+	if *baseURLFlag != "" {
+		if err := cfg.BaseURL.Set(*baseURLFlag); err != nil {
+			return nil, fmt.Errorf("invalid base URL flag: %w", err)
+		}
 	}
 
-	a.Host = parts[0]
-
-	port, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return fmt.Errorf("invalid port: %w", err)
-	}
-	a.Port = port
-
-	return nil
-}
-
-type URLPrefix string
-
-func (b URLPrefix) String() string {
-	return string(b)
-}
-
-func (b *URLPrefix) Set(value string) error {
-	if !strings.HasPrefix(value, "http") {
-		return fmt.Errorf("invalid URL prefix format: %s", value)
+	if err := env.Parse(cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse environment variables: %w", err)
 	}
 
-	*b = URLPrefix(value)
-
-	return nil
-}
-
-var (
-	Address NetworkAddress = NetworkAddress{Host: "localhost", Port: 8080}
-	BaseURL URLPrefix      = URLPrefix("http://localhost:8080/")
-)
-
-func init() {
-	flag.Var(&Address, "a", "address to run HTTP server")
-	flag.Var(&BaseURL, "b", "base URL for shortened URL")
+	return cfg, nil
 }

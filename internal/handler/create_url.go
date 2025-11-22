@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/model"
 )
 
@@ -26,7 +25,7 @@ func (u *Usecase) CreateURL(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Формируем URL ответа
-	shortURL, err := url.JoinPath(config.BaseURL.String(), string(code))
+	shortURL, err := url.JoinPath(u.cfg.BaseURL.String(), string(code))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

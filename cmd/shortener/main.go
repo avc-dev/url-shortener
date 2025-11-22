@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"net/http"
 
@@ -14,18 +13,23 @@ import (
 )
 
 func main() {
-	flag.Parse()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	storage := store.NewStore()
 	repo := repository.New(storage)
 	urlService := service.NewURLService(repo)
-	usecase := handler.New(repo, urlService)
+	usecase := handler.New(repo, urlService, cfg)
 
 	r := chi.NewRouter()
 	r.Post("/", usecase.CreateURL)
 	r.Get("/{id}", usecase.GetURL)
 
-	err := http.ListenAndServe(config.Address.String(), r)
+	log.Printf("Starting server on %s", cfg.ServerAddress.String())
+
+	err = http.ListenAndServe(cfg.ServerAddress.String(), r)
 	if err != nil {
 		log.Fatal(err)
 	}

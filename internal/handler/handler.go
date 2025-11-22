@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/model"
 )
 
@@ -16,11 +17,13 @@ type URLService interface {
 type Usecase struct {
 	repo    URLRepository
 	service URLService
+	cfg     *config.Config
 }
 
-func New(repo URLRepository, service URLService) *Usecase {
+func New(repo URLRepository, service URLService, cfg *config.Config) *Usecase {
 	return &Usecase{
 		repo:    repo,
 		service: service,
+		cfg:     cfg,
 	}
 }
