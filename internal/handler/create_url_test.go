@@ -104,13 +104,6 @@ func TestCreateURL_EmptyBody(t *testing.T) {
 	mockRepo := mocks.NewMockURLRepository(t)
 	mockService := mocks.NewMockURLService(t)
 
-	generatedCode := model.Code("testcode")
-
-	mockService.EXPECT().
-		CreateShortURL(model.URL("")).
-		Return(generatedCode, nil).
-		Once()
-
 	usecase := New(mockRepo, mockService, testCfg)
 
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(""))
@@ -123,8 +116,8 @@ func TestCreateURL_EmptyBody(t *testing.T) {
 	resp := w.Result()
 	defer resp.Body.Close()
 
-	// Хендлер все равно должен вернуть StatusCreated даже с пустым URL
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	// Пустой URL невалиден, должен вернуть BadRequest
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
 // TestCreateURL_ReadBodyError проверяет обработку ошибки чтения body
@@ -246,31 +239,37 @@ func TestCreateURL_BoundaryConditions(t *testing.T) {
 	tests := []struct {
 		name           string
 		url            string
+		expectedURL    string // URL после очистки
 		expectedStatus int
 	}{
 		{
 			name:           "Single character URL",
 			url:            "a",
-			expectedStatus: http.StatusCreated,
+			expectedURL:    "",
+			expectedStatus: http.StatusBadRequest, // Одиночный символ не валидный URL
 		},
 		{
 			name:           "Very long URL (2000+ chars)",
 			url:            "https://example.com/" + strings.Repeat("a", 2000),
+			expectedURL:    "https://example.com/" + strings.Repeat("a", 2000),
 			expectedStatus: http.StatusCreated,
 		},
 		{
 			name:           "URL with newlines",
 			url:            "https://example.com\n\r",
+			expectedURL:    "https://example.com", // Переносы строк удаляются
 			expectedStatus: http.StatusCreated,
 		},
 		{
 			name:           "URL with spaces",
 			url:            "https://example.com/path with spaces",
+			expectedURL:    "https://example.com/path with spaces",
 			expectedStatus: http.StatusCreated,
 		},
 		{
 			name:           "Unicode URL",
 			url:            "https://example.com/путь/до/ресурса",
+			expectedURL:    "https://example.com/путь/до/ресурса",
 			expectedStatus: http.StatusCreated,
 		},
 	}
@@ -283,10 +282,13 @@ func TestCreateURL_BoundaryConditions(t *testing.T) {
 
 			generatedCode := model.Code("testcode")
 
-			mockService.EXPECT().
-				CreateShortURL(model.URL(tt.url)).
-				Return(generatedCode, nil).
-				Once()
+			// Только для успешных запросов настраиваем mock
+			if tt.expectedStatus == http.StatusCreated {
+				mockService.EXPECT().
+					CreateShortURL(model.URL(tt.expectedURL)).
+					Return(generatedCode, nil).
+					Once()
+			}
 
 			usecase := New(mockRepo, mockService, testCfg)
 
@@ -302,6 +304,81 @@ func TestCreateURL_BoundaryConditions(t *testing.T) {
 			defer resp.Body.Close()
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+		})
+	}
+}
+
+// TestCreateURL_URLWithQuotes проверяет, что URL с кавычками корректно обрабатывается
+func TestCreateURL_URLWithQuotes(t *testing.T) {
+	testCfg := config.NewDefaultConfig()
+
+	tests := []struct {
+		name           string
+		inputURL       string
+		expectedURL    string
+		expectedStatus int
+	}{
+		{
+			name:           "URL with double quotes",
+			inputURL:       `"https://practicum.yandex.ru/"`,
+			expectedURL:    "https://practicum.yandex.ru/",
+			expectedStatus: http.StatusCreated,
+		},
+		{
+			name:           "URL with single quotes",
+			inputURL:       `'https://practicum.yandex.ru/'`,
+			expectedURL:    "https://practicum.yandex.ru/",
+			expectedStatus: http.StatusCreated,
+		},
+		{
+			name:           "URL with mixed quotes",
+			inputURL:       `"https://practicum.yandex.ru/'`,
+			expectedURL:    "https://practicum.yandex.ru/",
+			expectedStatus: http.StatusCreated,
+		},
+		{
+			name:           "URL with quotes and spaces",
+			inputURL:       `  "https://practicum.yandex.ru/"  `,
+			expectedURL:    "https://practicum.yandex.ru/",
+			expectedStatus: http.StatusCreated,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			mockRepo := mocks.NewMockURLRepository(t)
+			mockService := mocks.NewMockURLService(t)
+
+			generatedCode := model.Code("testcode")
+
+			// Mock должен получить очищенный URL без кавычек
+			mockService.EXPECT().
+				CreateShortURL(model.URL(tt.expectedURL)).
+				Return(generatedCode, nil).
+				Once()
+
+			usecase := New(mockRepo, mockService, testCfg)
+
+			body := bytes.NewBufferString(tt.inputURL)
+			req := httptest.NewRequest(http.MethodPost, "/", body)
+			w := httptest.NewRecorder()
+
+			// Act
+			usecase.CreateURL(w, req)
+
+			// Assert
+			resp := w.Result()
+			defer resp.Body.Close()
+
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if tt.expectedStatus == http.StatusCreated {
+				bodyBytes, _ := io.ReadAll(resp.Body)
+				shortURL := string(bodyBytes)
+				// Проверяем, что короткий URL был создан
+				assert.Contains(t, shortURL, testCfg.BaseURL.String())
+			}
 		})
 	}
 }

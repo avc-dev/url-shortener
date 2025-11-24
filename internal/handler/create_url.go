@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/avc-dev/url-shortener/internal/model"
 )
@@ -15,7 +16,18 @@ func (u *Usecase) CreateURL(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	originalURL := model.URL(body)
+	// Очищаем URL от пробелов и кавычек
+	urlString := strings.TrimSpace(string(body))
+	urlString = strings.Trim(urlString, `"'`)
+
+	// Валидируем URL
+	parsedURL, err := url.Parse(urlString)
+	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	originalURL := model.URL(urlString)
 
 	// Генерируем уникальный код и сохраняем через service layer
 	code, err := u.service.CreateShortURL(originalURL)
