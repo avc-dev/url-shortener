@@ -27,7 +27,22 @@ func main() {
 	}
 	defer logger.Sync()
 
-	storage := store.NewStore()
+	// Создаём хранилище в зависимости от конфигурации
+	var storage repository.Store
+	if cfg.FileStoragePath != "" {
+		// Используем FileStore для персистентного хранения
+		fileStore, err := store.NewFileStore(cfg.FileStoragePath)
+		if err != nil {
+			logger.Fatal("Failed to initialize file store", zap.Error(err))
+		}
+		storage = fileStore
+		logger.Info("Using file storage", zap.String("path", cfg.FileStoragePath))
+	} else {
+		// Используем обычный in-memory Store
+		storage = store.NewStore()
+		logger.Info("Using in-memory storage")
+	}
+
 	repo := repository.New(storage)
 	urlService := service.NewURLService(repo)
 	urlUsecase := usecase.NewURLUsecase(repo, urlService, cfg, logger)
