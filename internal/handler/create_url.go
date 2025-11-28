@@ -3,47 +3,28 @@ package handler
 import (
 	"io"
 	"net/http"
-	"net/url"
-	"strings"
 
-	"github.com/avc-dev/url-shortener/internal/model"
+	"go.uber.org/zap"
 )
 
-func (u *Usecase) CreateURL(w http.ResponseWriter, req *http.Request) {
+// CreateURL обрабатывает POST запрос для создания короткого URL (plain text формат)
+func (h *Handler) CreateURL(w http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
+		h.logger.Warn("failed to read request body",
+			zap.Error(err),
+			zap.String("remote_addr", req.RemoteAddr),
+		)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	// Очищаем URL от пробелов и кавычек
-	urlString := strings.TrimSpace(string(body))
-	urlString = strings.Trim(urlString, `"'`)
-
-	// Валидируем URL
-	parsedURL, err := url.Parse(urlString)
-	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	originalURL := model.URL(urlString)
-
-	// Генерируем уникальный код и сохраняем через service layer
-	code, err := u.service.CreateShortURL(originalURL)
+	shortURL, err := h.usecase.CreateShortURLFromString(string(body))
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		h.handleError(w, err)
 		return
 	}
 
-	// Формируем URL ответа
-	shortURL, err := url.JoinPath(u.cfg.BaseURL.String(), string(code))
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	// Отправляем ответ
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(shortURL))

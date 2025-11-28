@@ -10,6 +10,7 @@ import (
 	"github.com/avc-dev/url-shortener/internal/repository"
 	"github.com/avc-dev/url-shortener/internal/service"
 	"github.com/avc-dev/url-shortener/internal/store"
+	"github.com/avc-dev/url-shortener/internal/usecase"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
@@ -29,14 +30,16 @@ func main() {
 	storage := store.NewStore()
 	repo := repository.New(storage)
 	urlService := service.NewURLService(repo)
-	usecase := handler.New(repo, urlService, cfg)
+	urlUsecase := usecase.NewURLUsecase(repo, urlService, cfg, logger)
+	h := handler.New(urlUsecase, logger)
 
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger(logger))
 
-	r.Post("/", usecase.CreateURL)
-	r.Get("/{id}", usecase.GetURL)
+	r.Post("/", h.CreateURL)
+	r.Post("/api/shorten", h.CreateURLJSON)
+	r.Get("/{id}", h.GetURL)
 
 	logger.Info("Starting server", zap.String("address", cfg.ServerAddress.String()))
 

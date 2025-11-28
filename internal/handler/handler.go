@@ -1,29 +1,44 @@
 package handler
 
 import (
-	"github.com/avc-dev/url-shortener/internal/config"
-	"github.com/avc-dev/url-shortener/internal/model"
+	"errors"
+	"net/http"
+
+	"github.com/avc-dev/url-shortener/internal/usecase"
+	"go.uber.org/zap"
 )
 
-type URLRepository interface {
-	CreateURL(code model.Code, url model.URL) error
-	GetURLByCode(code model.Code) (model.URL, error)
+// URLUsecase определяет интерфейс для бизнес-логики работы с URL
+type URLUsecase interface {
+	CreateShortURLFromString(urlString string) (string, error)
+	GetOriginalURL(code string) (string, error)
 }
 
-type URLService interface {
-	CreateShortURL(originalURL model.URL) (model.Code, error)
+// Handler обрабатывает HTTP запросы
+type Handler struct {
+	usecase URLUsecase
+	logger  *zap.Logger
 }
 
-type Usecase struct {
-	repo    URLRepository
-	service URLService
-	cfg     *config.Config
+// New создает новый экземпляр Handler
+func New(usecase URLUsecase, logger *zap.Logger) *Handler {
+	return &Handler{
+		usecase: usecase,
+		logger:  logger,
+	}
 }
 
-func New(repo URLRepository, service URLService, cfg *config.Config) *Usecase {
-	return &Usecase{
-		repo:    repo,
-		service: service,
-		cfg:     cfg,
+// handleError маппит ошибки usecase на HTTP статусы
+func (h *Handler) handleError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, usecase.ErrInvalidURL), errors.Is(err, usecase.ErrEmptyURL):
+		h.logger.Warn("bad request", zap.Error(err))
+		w.WriteHeader(http.StatusBadRequest)
+	case errors.Is(err, usecase.ErrURLNotFound):
+		h.logger.Debug("URL not found", zap.Error(err))
+		w.WriteHeader(http.StatusNotFound)
+	default:
+		h.logger.Error("internal server error", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
