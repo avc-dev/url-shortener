@@ -55,7 +55,7 @@ func TestFileStore_Persistence(t *testing.T) {
 	fs1, err := NewFileStore(filePath)
 	require.NoError(t, err)
 
-	testData := map[model.Code]model.URL{
+	testData := URLMap{
 		"code1": "https://example.com/1",
 		"code2": "https://example.com/2",
 		"code3": "https://example.com/3",
@@ -113,19 +113,10 @@ func TestFileStore_LoadFromExistingFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "test_urls.json")
 
-	// Создаём файл с данными вручную
-	jsonData := `[
-  {
-    "uuid": "550e8400-e29b-41d4-a716-446655440000",
-    "short_url": "abc123",
-    "original_url": "https://example.com"
-  },
-  {
-    "uuid": "550e8400-e29b-41d4-a716-446655440001",
-    "short_url": "def456",
-    "original_url": "https://google.com"
-  }
-]`
+	// Создаём файл с данными вручную в JSONL формате (каждая запись на отдельной строке)
+	jsonData := `{"uuid":"550e8400-e29b-41d4-a716-446655440000","short_url":"abc123","original_url":"https://example.com"}
+{"uuid":"550e8400-e29b-41d4-a716-446655440001","short_url":"def456","original_url":"https://google.com"}
+`
 	err := os.WriteFile(filePath, []byte(jsonData), 0644)
 	require.NoError(t, err)
 

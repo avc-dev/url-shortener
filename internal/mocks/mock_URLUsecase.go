@@ -145,4 +145,3 @@ func NewMockURLUsecase(t interface {
 	return mock
 }
 
-

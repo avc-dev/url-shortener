@@ -36,14 +36,21 @@ func (fs *FileStore) Read(key model.Code) (model.URL, error) {
 	return fs.store.Read(key)
 }
 
-// Write записывает значение в in-memory store и сохраняет в файл
+// Write записывает значение в in-memory store и добавляет в файл
 func (fs *FileStore) Write(key model.Code, value model.URL) error {
 	if err := fs.store.Write(key, value); err != nil {
 		return fmt.Errorf("failed to write to in-memory store: %w", err)
 	}
 
-	if err := fs.saveToFile(); err != nil {
-		return fmt.Errorf("failed to save to file: %w", err)
+	// Добавляем только новую запись в файл (O(1) вместо O(n))
+	entry := model.URLEntry{
+		UUID:        uuid.New().String(),
+		ShortURL:    string(key),
+		OriginalURL: string(value),
+	}
+
+	if err := fs.fileStorage.Append(entry); err != nil {
+		return fmt.Errorf("failed to append to file: %w", err)
 	}
 
 	return nil
@@ -56,34 +63,14 @@ func (fs *FileStore) loadFromFile() error {
 		return fmt.Errorf("failed to load data from file: %w", err)
 	}
 
-	// Загружаем каждую запись в in-memory store
+	data := make(URLMap, len(entries))
 	for _, entry := range entries {
 		code := model.Code(entry.ShortURL)
 		url := model.URL(entry.OriginalURL)
-
-		// Используем прямую запись в map, чтобы избежать проверки на существование
-		fs.store.mutex.Lock()
-		fs.store.store[code] = url
-		fs.store.mutex.Unlock()
+		data[code] = url
 	}
+
+	fs.store.InitializeWith(data)
 
 	return nil
 }
-
-// saveToFile сохраняет все данные из in-memory store в файл
-func (fs *FileStore) saveToFile() error {
-	fs.store.mutex.Lock()
-	defer fs.store.mutex.Unlock()
-
-	entries := make([]model.URLEntry, 0, len(fs.store.store))
-	for code, url := range fs.store.store {
-		entries = append(entries, model.URLEntry{
-			UUID:        uuid.New().String(),
-			ShortURL:    string(code),
-			OriginalURL: string(url),
-		})
-	}
-
-	return fs.fileStorage.Save(entries)
-}
-

@@ -8,3 +8,4 @@ var (
 	ErrServiceUnavailable = errors.New("service unavailable")
 	ErrURLNotFound        = errors.New("URL not found")
 )
+

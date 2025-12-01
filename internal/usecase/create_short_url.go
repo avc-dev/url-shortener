@@ -20,8 +20,16 @@ func (u *URLUsecase) CreateShortURLFromString(urlString string) (string, error) 
 	}
 
 	parsedURL, err := url.Parse(urlString)
-	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return "", ErrInvalidURL
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrInvalidURL, err)
+	}
+
+	if parsedURL.Scheme == "" {
+		return "", fmt.Errorf("%w: scheme is missing", ErrInvalidURL)
+	}
+
+	if parsedURL.Host == "" {
+		return "", fmt.Errorf("%w: host is missing", ErrInvalidURL)
 	}
 
 	originalURL := model.URL(urlString)

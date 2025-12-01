@@ -32,7 +32,7 @@ func New(usecase URLUsecase, logger *zap.Logger) *Handler {
 func (h *Handler) handleError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, usecase.ErrInvalidURL), errors.Is(err, usecase.ErrEmptyURL):
-		h.logger.Warn("bad request", zap.Error(err))
+		h.logger.Debug("bad request", zap.Error(err))
 		w.WriteHeader(http.StatusBadRequest)
 	case errors.Is(err, usecase.ErrURLNotFound):
 		h.logger.Debug("URL not found", zap.Error(err))

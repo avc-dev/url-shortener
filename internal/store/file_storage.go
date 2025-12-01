@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,40 +21,70 @@ func NewFileStorage(filePath string) *FileStorage {
 	}
 }
 
-// Load загружает все записи из файла
+// Load загружает все записи из файла (JSONL формат - каждая запись на отдельной строке)
 func (fs *FileStorage) Load() ([]model.URLEntry, error) {
-	if _, err := os.Stat(fs.filePath); os.IsNotExist(err) {
-		return []model.URLEntry{}, nil
-	}
-
-	data, err := os.ReadFile(fs.filePath)
+	file, err := os.Open(fs.filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		if os.IsNotExist(err) {
+			return []model.URLEntry{}, nil
+		}
+		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
-
-	if len(data) == 0 {
-		return []model.URLEntry{}, nil
-	}
+	defer file.Close()
 
 	var entries []model.URLEntry
-	if err := json.Unmarshal(data, &entries); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		var entry model.URLEntry
+		if err := json.Unmarshal(line, &entry); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal JSON line: %w", err)
+		}
+		entries = append(entries, entry)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	return entries, nil
 }
 
-// Save сохраняет все записи в файл
+// Save сохраняет все записи в файл (JSONL формат - каждая запись на отдельной строке)
+// Используется для компакции или начального сохранения
 func (fs *FileStorage) Save(entries []model.URLEntry) error {
-	data, err := json.MarshalIndent(entries, "", "  ")
+	file, err := os.Create(fs.filePath)
 	if err != nil {
-		return fmt.Errorf("failed to marshal JSON: %w", err)
+		return fmt.Errorf("failed to create file: %w", err)
 	}
+	defer file.Close()
 
-	if err := os.WriteFile(fs.filePath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
+	encoder := json.NewEncoder(file)
+	for _, entry := range entries {
+		if err := encoder.Encode(entry); err != nil {
+			return fmt.Errorf("failed to encode entry: %w", err)
+		}
 	}
 
 	return nil
 }
 
+// Append добавляет одну запись в конец файла (JSONL формат)
+func (fs *FileStorage) Append(entry model.URLEntry) error {
+	file, err := os.OpenFile(fs.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file for append: %w", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	if err := encoder.Encode(entry); err != nil {
+		return fmt.Errorf("failed to encode entry: %w", err)
+	}
+
+	return nil
+}
