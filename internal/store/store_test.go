@@ -182,7 +182,7 @@ func TestStore_Read_NotFound(t *testing.T) {
 func TestStore_WriteRead_Integration(t *testing.T) {
 	// Arrange
 	store := NewStore()
-	testData := map[model.Code]model.URL{
+	testData := URLMap{
 		"code1": "https://example.com/1",
 		"code2": "https://example.com/2",
 		"code3": "https://example.com/3",

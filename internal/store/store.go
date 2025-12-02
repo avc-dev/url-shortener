@@ -1,6 +1,7 @@
 package store
 
 import (
+	"maps"
 	"errors"
 	"fmt"
 	"sync"
@@ -13,14 +14,17 @@ var (
 	ErrAlreadyExists = errors.New("key already exists")
 )
 
+// URLMap представляет маппинг коротких кодов на оригинальные URL
+type URLMap = map[model.Code]model.URL
+
 type Store struct {
-	store map[model.Code]model.URL
+	store URLMap
 	mutex sync.Mutex
 }
 
 func NewStore() *Store {
 	return &Store{
-		store: make(map[model.Code]model.URL),
+		store: make(URLMap),
 		mutex: sync.Mutex{},
 	}
 }
@@ -50,4 +54,13 @@ func (s *Store) Write(key model.Code, value model.URL) error {
 	s.store[key] = value
 
 	return nil
+}
+
+// InitializeWith инициализирует хранилище данными (без проверки на существование)
+// Используется для массовой загрузки данных, например, из файла
+func (s *Store) InitializeWith(data URLMap) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	maps.Copy(s.store, data)
 }

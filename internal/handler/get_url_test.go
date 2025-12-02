@@ -2,15 +2,15 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/avc-dev/url-shortener/internal/mocks"
-	"github.com/avc-dev/url-shortener/internal/model"
+	"github.com/avc-dev/url-shortener/internal/usecase"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 // TestGetURL_Success проверяет успешное получение URL по коду
@@ -62,14 +62,13 @@ func TestGetURL_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockRepo := mocks.NewMockURLRepository(t)
-			mockService := mocks.NewMockURLService(t)
-			mockRepo.EXPECT().
-				GetURLByCode(model.Code(tt.code)).
-				Return(model.URL(tt.expectedURL), nil).
+			mockUsecase := mocks.NewMockURLUsecase(t)
+			mockUsecase.EXPECT().
+				GetOriginalURL(tt.code).
+				Return(tt.expectedURL, nil).
 				Once()
 
-			usecase := New(mockRepo, mockService)
+			handler := New(mockUsecase, zap.NewNop())
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.code, nil)
 			// Add chi context with URL parameter
@@ -79,7 +78,7 @@ func TestGetURL_Success(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			// Act
-			usecase.GetURL(w, req)
+			handler.GetURL(w, req)
 
 			// Assert
 			resp := w.Result()
@@ -96,25 +95,21 @@ func TestGetURL_NotFound(t *testing.T) {
 	tests := []struct {
 		name           string
 		code           string
-		repoError      error
 		expectedStatus int
 	}{
 		{
 			name:           "Code not found",
 			code:           "notexist",
-			repoError:      errors.New("not found"),
 			expectedStatus: http.StatusNotFound,
 		},
 		{
 			name:           "Database error treated as not found",
 			code:           "dberror1",
-			repoError:      errors.New("database connection failed"),
 			expectedStatus: http.StatusNotFound,
 		},
 		{
 			name:           "Empty result error",
 			code:           "empty123",
-			repoError:      errors.New("no rows"),
 			expectedStatus: http.StatusNotFound,
 		},
 	}
@@ -122,14 +117,13 @@ func TestGetURL_NotFound(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockRepo := mocks.NewMockURLRepository(t)
-			mockService := mocks.NewMockURLService(t)
-			mockRepo.EXPECT().
-				GetURLByCode(model.Code(tt.code)).
-				Return(model.URL(""), tt.repoError).
+			mockUsecase := mocks.NewMockURLUsecase(t)
+			mockUsecase.EXPECT().
+				GetOriginalURL(tt.code).
+				Return("", usecase.ErrURLNotFound).
 				Once()
 
-			usecase := New(mockRepo, mockService)
+			handler := New(mockUsecase, zap.NewNop())
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.code, nil)
 			// Add chi context with URL parameter
@@ -139,7 +133,7 @@ func TestGetURL_NotFound(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			// Act
-			usecase.GetURL(w, req)
+			handler.GetURL(w, req)
 
 			// Assert
 			resp := w.Result()
@@ -154,14 +148,13 @@ func TestGetURL_NotFound(t *testing.T) {
 // TestGetURL_EmptyCode проверяет обработку пустого кода
 func TestGetURL_EmptyCode(t *testing.T) {
 	// Arrange
-	mockRepo := mocks.NewMockURLRepository(t)
-	mockService := mocks.NewMockURLService(t)
-	mockRepo.EXPECT().
-		GetURLByCode(model.Code("")).
-		Return(model.URL(""), errors.New("not found")).
+	mockUsecase := mocks.NewMockURLUsecase(t)
+	mockUsecase.EXPECT().
+		GetOriginalURL("").
+		Return("", usecase.ErrURLNotFound).
 		Once()
 
-	usecase := New(mockRepo, mockService)
+	handler := New(mockUsecase, zap.NewNop())
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	// Add chi context with empty URL parameter
@@ -171,7 +164,7 @@ func TestGetURL_EmptyCode(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Act
-	usecase.GetURL(w, req)
+	handler.GetURL(w, req)
 
 	// Assert
 	resp := w.Result()
@@ -217,14 +210,13 @@ func TestGetURL_CodeExtraction(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockRepo := mocks.NewMockURLRepository(t)
-			mockService := mocks.NewMockURLService(t)
-			mockRepo.EXPECT().
-				GetURLByCode(model.Code(tt.expectedCode)).
-				Return(model.URL("https://example.com"), nil).
+			mockUsecase := mocks.NewMockURLUsecase(t)
+			mockUsecase.EXPECT().
+				GetOriginalURL(tt.expectedCode).
+				Return("https://example.com", nil).
 				Once()
 
-			usecase := New(mockRepo, mockService)
+			handler := New(mockUsecase, zap.NewNop())
 
 			req := httptest.NewRequest(http.MethodGet, tt.requestPath, nil)
 			// Add chi context with URL parameter
@@ -234,7 +226,7 @@ func TestGetURL_CodeExtraction(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			// Act
-			usecase.GetURL(w, req)
+			handler.GetURL(w, req)
 		})
 	}
 }
@@ -302,21 +294,20 @@ func TestGetURL_BoundaryConditions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			mockRepo := mocks.NewMockURLRepository(t)
-			mockService := mocks.NewMockURLService(t)
+			mockUsecase := mocks.NewMockURLUsecase(t)
 			if tt.returnError != nil {
-				mockRepo.EXPECT().
-					GetURLByCode(model.Code(tt.code)).
-					Return(model.URL(""), tt.returnError).
+				mockUsecase.EXPECT().
+					GetOriginalURL(tt.code).
+					Return("", usecase.ErrURLNotFound).
 					Once()
 			} else {
-				mockRepo.EXPECT().
-					GetURLByCode(model.Code(tt.code)).
-					Return(model.URL(tt.returnURL), nil).
+				mockUsecase.EXPECT().
+					GetOriginalURL(tt.code).
+					Return(tt.returnURL, nil).
 					Once()
 			}
 
-			usecase := New(mockRepo, mockService)
+			handler := New(mockUsecase, zap.NewNop())
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.code, nil)
 			// Add chi context with URL parameter
@@ -326,7 +317,7 @@ func TestGetURL_BoundaryConditions(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			// Act
-			usecase.GetURL(w, req)
+			handler.GetURL(w, req)
 
 			// Assert
 			resp := w.Result()
@@ -344,14 +335,13 @@ func TestGetURL_BoundaryConditions(t *testing.T) {
 // TestGetURL_UnicodeURL проверяет обработку URL с unicode символами
 func TestGetURL_UnicodeURL(t *testing.T) {
 	// Arrange
-	mockRepo := mocks.NewMockURLRepository(t)
-	mockService := mocks.NewMockURLService(t)
-	mockRepo.EXPECT().
-		GetURLByCode(model.Code("abc12345")).
-		Return(model.URL("https://example.com/путь"), nil).
+	mockUsecase := mocks.NewMockURLUsecase(t)
+	mockUsecase.EXPECT().
+		GetOriginalURL("abc12345").
+		Return("https://example.com/путь", nil).
 		Once()
 
-	usecase := New(mockRepo, mockService)
+	handler := New(mockUsecase, zap.NewNop())
 
 	req := httptest.NewRequest(http.MethodGet, "/abc12345", nil)
 	// Add chi context with URL parameter
@@ -361,7 +351,7 @@ func TestGetURL_UnicodeURL(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Act
-	usecase.GetURL(w, req)
+	handler.GetURL(w, req)
 
 	// Assert
 	resp := w.Result()
@@ -387,14 +377,13 @@ func TestGetURL_UnicodeURL(t *testing.T) {
 // TestGetURL_RedirectStatusCode проверяет что используется правильный статус редиректа
 func TestGetURL_RedirectStatusCode(t *testing.T) {
 	// Arrange
-	mockRepo := mocks.NewMockURLRepository(t)
-	mockService := mocks.NewMockURLService(t)
-	mockRepo.EXPECT().
-		GetURLByCode(model.Code("abc12345")).
-		Return(model.URL("https://example.com"), nil).
+	mockUsecase := mocks.NewMockURLUsecase(t)
+	mockUsecase.EXPECT().
+		GetOriginalURL("abc12345").
+		Return("https://example.com", nil).
 		Once()
 
-	usecase := New(mockRepo, mockService)
+	handler := New(mockUsecase, zap.NewNop())
 
 	req := httptest.NewRequest(http.MethodGet, "/abc12345", nil)
 	// Add chi context with URL parameter
@@ -404,7 +393,7 @@ func TestGetURL_RedirectStatusCode(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Act
-	usecase.GetURL(w, req)
+	handler.GetURL(w, req)
 
 	// Assert
 	resp := w.Result()
@@ -415,19 +404,18 @@ func TestGetURL_RedirectStatusCode(t *testing.T) {
 	assert.Equal(t, 307, resp.StatusCode)
 }
 
-// TestGetURL_RepositoryInteraction проверяет взаимодействие с репозиторием
-func TestGetURL_RepositoryInteraction(t *testing.T) {
+// TestGetURL_UsecaseInteraction проверяет взаимодействие с usecase
+func TestGetURL_UsecaseInteraction(t *testing.T) {
 	// Arrange
 	expectedCode := "testcode"
 
-	mockRepo := mocks.NewMockURLRepository(t)
-	mockService := mocks.NewMockURLService(t)
-	mockRepo.EXPECT().
-		GetURLByCode(model.Code(expectedCode)).
-		Return(model.URL("https://example.com"), nil).
+	mockUsecase := mocks.NewMockURLUsecase(t)
+	mockUsecase.EXPECT().
+		GetOriginalURL(expectedCode).
+		Return("https://example.com", nil).
 		Once()
 
-	usecase := New(mockRepo, mockService)
+	handler := New(mockUsecase, zap.NewNop())
 
 	req := httptest.NewRequest(http.MethodGet, "/"+expectedCode, nil)
 	// Add chi context with URL parameter
@@ -437,24 +425,23 @@ func TestGetURL_RepositoryInteraction(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// Act
-	usecase.GetURL(w, req)
+	handler.GetURL(w, req)
 }
 
 // TestGetURL_ConcurrentRequests проверяет обработку параллельных запросов
 func TestGetURL_ConcurrentRequests(t *testing.T) {
 	// Arrange
-	mockRepo := mocks.NewMockURLRepository(t)
-	mockService := mocks.NewMockURLService(t)
+	mockUsecase := mocks.NewMockURLUsecase(t)
 	// Ожидаем 10 различных вызовов
 	for i := 0; i < 10; i++ {
 		code := string(rune('a' + i))
-		mockRepo.EXPECT().
-			GetURLByCode(model.Code(code)).
-			Return(model.URL("https://example.com/"+code), nil).
+		mockUsecase.EXPECT().
+			GetOriginalURL(code).
+			Return("https://example.com/"+code, nil).
 			Once()
 	}
 
-	usecase := New(mockRepo, mockService)
+	handler := New(mockUsecase, zap.NewNop())
 
 	// Act & Assert - запускаем несколько параллельных запросов
 	done := make(chan bool)
@@ -470,7 +457,7 @@ func TestGetURL_ConcurrentRequests(t *testing.T) {
 			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 			w := httptest.NewRecorder()
 
-			usecase.GetURL(w, req)
+			handler.GetURL(w, req)
 
 			resp := w.Result()
 			defer resp.Body.Close()
