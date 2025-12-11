@@ -16,10 +16,10 @@ func newRouter(h *handler.Handler, logger *zap.Logger) *chi.Mux {
 	r.Use(middleware.GzipMiddleware(logger))
 
 	// Routes
+	r.Get("/ping", h.Ping)
 	r.Post("/", h.CreateURL)
 	r.Post("/api/shorten", h.CreateURLJSON)
 	r.Get("/{id}", h.GetURL)
 
 	return r
 }
-

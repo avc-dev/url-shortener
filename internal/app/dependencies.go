@@ -1,9 +1,11 @@
 package app
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/avc-dev/url-shortener/internal/config"
+	"github.com/avc-dev/url-shortener/internal/config/db"
 	"github.com/avc-dev/url-shortener/internal/handler"
 	"github.com/avc-dev/url-shortener/internal/repository"
 	"github.com/avc-dev/url-shortener/internal/service"
@@ -14,6 +16,15 @@ import (
 
 // initDependencies инициализирует все зависимости приложения
 func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler, error) {
+	var dbPool db.Database
+	if cfg.DatabaseDSN != "" {
+		var err error
+		dbPool, err = initDatabase(cfg, logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize database: %w", err)
+		}
+	}
+
 	storage, err := initStorage(cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
@@ -22,9 +33,23 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 	repo := repository.New(storage)
 	urlService := service.NewURLService(repo)
 	urlUsecase := usecase.NewURLUsecase(repo, urlService, cfg, logger)
-	h := handler.New(urlUsecase, logger)
+	h := handler.New(urlUsecase, logger, dbPool)
 
 	return h, nil
+}
+
+// initDatabase инициализирует подключение к базе данных
+func initDatabase(cfg *config.Config, logger *zap.Logger) (db.Database, error) {
+	ctx := context.Background()
+	dbConfig := db.NewConfig(cfg.DatabaseDSN)
+
+	pool, err := dbConfig.Connect(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	logger.Info("Connected to database", zap.String("dsn", cfg.DatabaseDSN))
+	return pool, nil
 }
 
 // initStorage создает хранилище на основе конфигурации

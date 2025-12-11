@@ -9,4 +9,7 @@ packages:
   github.com/avc-dev/url-shortener/internal/service:
     interfaces:
       CodeChecker:
+  github.com/avc-dev/url-shortener/internal/config/db:
+    interfaces:
+      Database:
 
