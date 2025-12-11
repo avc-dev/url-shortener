@@ -15,19 +15,22 @@ import (
 )
 
 // initDependencies инициализирует все зависимости приложения
-func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler, error) {
+func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler, db.Database, error) {
 	var dbPool db.Database
 	if cfg.DatabaseDSN != "" {
 		var err error
 		dbPool, err = initDatabase(cfg, logger)
 		if err != nil {
-			return nil, fmt.Errorf("failed to initialize database: %w", err)
+			return nil, nil, fmt.Errorf("failed to initialize database: %w", err)
 		}
 	}
 
 	storage, err := initStorage(cfg, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize storage: %w", err)
+		if dbPool != nil {
+			dbPool.Close()
+		}
+		return nil, nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
 	repo := repository.New(storage)
@@ -35,7 +38,7 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 	urlUsecase := usecase.NewURLUsecase(repo, urlService, cfg, logger)
 	h := handler.New(urlUsecase, logger, dbPool)
 
-	return h, nil
+	return h, dbPool, nil
 }
 
 // initDatabase инициализирует подключение к базе данных
