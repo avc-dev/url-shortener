@@ -18,21 +18,11 @@ func TestCreateShortURL_Success(t *testing.T) {
 	// Arrange
 	mockRepo := mocks.NewMockURLRepository(t)
 	cfg := config.NewDefaultConfig()
+	expectedCode := model.Code("abc123")
 
 	mockRepo.EXPECT().
 		CreateOrGetCode(mock.AnythingOfType("model.URL")).
-		Return("", true, nil). // true = создана новая запись, пустой код значит URL не существует
-		Once()
-
-	// Мокаем GetURLByCode - сначала возвращаем ошибку (код не найден), потом успех
-	mockRepo.EXPECT().
-		GetURLByCode(mock.AnythingOfType("model.Code")).
-		Return(model.URL(""), store.ErrNotFound).
-		Maybe() // Может быть вызвано несколько раз
-
-	mockRepo.EXPECT().
-		CreateURL(mock.AnythingOfType("model.Code"), mock.AnythingOfType("model.URL")).
-		Return(nil).
+		Return(expectedCode, true, nil). // true = создана новая запись, возвращаем код
 		Once()
 
 	service := NewURLService(mockRepo, cfg)
@@ -43,7 +33,7 @@ func TestCreateShortURL_Success(t *testing.T) {
 
 	// Assert
 	require.NoError(t, err)
-	assert.NotEmpty(t, code)
+	assert.Equal(t, expectedCode, code)
 }
 
 // TestCreateShortURL_URLAlreadyExists проверяет возврат существующего кода при дублировании URL

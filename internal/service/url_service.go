@@ -38,18 +38,6 @@ func (s *URLService) CreateShortURL(originalURL model.URL) (model.Code, error) {
 		return code, fmt.Errorf("URL already exists: %w", store.ErrURLAlreadyExists)
 	}
 
-	// Генерируем уникальный код и сохраняем
-	code, err = s.codeGenerator.GenerateUniqueCode(originalURL)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate unique code: %w", err)
-	}
-
-	// Сохраняем код-URL пару в хранилище
-	err = s.repo.CreateURL(code, originalURL)
-	if err != nil {
-		return "", fmt.Errorf("failed to save URL: %w", err)
-	}
-
 	return code, nil
 }
 
