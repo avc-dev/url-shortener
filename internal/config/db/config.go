@@ -103,14 +103,14 @@ func Ping(ctx context.Context, db Database) error {
 // DBAdapter адаптер для pgxpool.Pool к Database интерфейсу
 type DBAdapter struct {
 	Pool  *pgxpool.Pool
-	SqlDB *sql.DB
+	SQLDB *sql.DB
 }
 
 // NewDBAdapter создает новый адаптер
 func NewDBAdapter(pool *pgxpool.Pool, sqlDB *sql.DB) *DBAdapter {
 	return &DBAdapter{
 		Pool:  pool,
-		SqlDB: sqlDB,
+		SQLDB: sqlDB,
 	}
 }
 
@@ -122,12 +122,12 @@ func (d *DBAdapter) Ping(ctx context.Context) error {
 // Close закрывает соединения
 func (d *DBAdapter) Close() {
 	d.Pool.Close()
-	if d.SqlDB != nil {
-		d.SqlDB.Close()
+	if d.SQLDB != nil {
+		d.SQLDB.Close()
 	}
 }
 
 // DB возвращает *sql.DB
 func (d *DBAdapter) DB() *sql.DB {
-	return d.SqlDB
+	return d.SQLDB
 }
