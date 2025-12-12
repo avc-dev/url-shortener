@@ -67,6 +67,52 @@ func (_c *MockURLRepository_CreateURL_Call) RunAndReturn(run func(model.Code, mo
 	return _c
 }
 
+// CreateURLsBatch provides a mock function with given fields: urls
+func (_m *MockURLRepository) CreateURLsBatch(urls map[model.Code]model.URL) error {
+	ret := _m.Called(urls)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateURLsBatch")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(map[model.Code]model.URL) error); ok {
+		r0 = rf(urls)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockURLRepository_CreateURLsBatch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateURLsBatch'
+type MockURLRepository_CreateURLsBatch_Call struct {
+	*mock.Call
+}
+
+// CreateURLsBatch is a helper method to define mock.On call
+//   - urls map[model.Code]model.URL
+func (_e *MockURLRepository_Expecter) CreateURLsBatch(urls interface{}) *MockURLRepository_CreateURLsBatch_Call {
+	return &MockURLRepository_CreateURLsBatch_Call{Call: _e.mock.On("CreateURLsBatch", urls)}
+}
+
+func (_c *MockURLRepository_CreateURLsBatch_Call) Run(run func(urls map[model.Code]model.URL)) *MockURLRepository_CreateURLsBatch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(map[model.Code]model.URL))
+	})
+	return _c
+}
+
+func (_c *MockURLRepository_CreateURLsBatch_Call) Return(_a0 error) *MockURLRepository_CreateURLsBatch_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockURLRepository_CreateURLsBatch_Call) RunAndReturn(run func(map[model.Code]model.URL) error) *MockURLRepository_CreateURLsBatch_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetURLByCode provides a mock function with given fields: code
 func (_m *MockURLRepository) GetURLByCode(code model.Code) (model.URL, error) {
 	ret := _m.Called(code)

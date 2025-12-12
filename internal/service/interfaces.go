@@ -7,4 +7,7 @@ type URLRepository interface {
 	// CreateURL сохраняет пару код-URL в хранилище
 	// Возвращает ошибку если код уже существует или произошла ошибка при сохранении
 	CreateURL(code model.Code, url model.URL) error
+	// CreateURLsBatch сохраняет несколько пар код-URL в хранилище
+	// Возвращает ошибку если произошла ошибка при сохранении
+	CreateURLsBatch(urls map[model.Code]model.URL) error
 }

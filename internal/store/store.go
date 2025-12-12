@@ -64,3 +64,23 @@ func (s *Store) InitializeWith(data URLMap) {
 
 	maps.Copy(s.store, data)
 }
+
+// WriteBatch сохраняет несколько пар код-URL в хранилище атомарно
+func (s *Store) WriteBatch(urls URLMap) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Проверяем существование всех кодов перед вставкой
+	for code := range urls {
+		if _, exists := s.store[code]; exists {
+			return fmt.Errorf("key %s: %w", code, ErrAlreadyExists)
+		}
+	}
+
+	// Вставляем все записи
+	for code, url := range urls {
+		s.store[code] = url
+	}
+
+	return nil
+}

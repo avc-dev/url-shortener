@@ -12,6 +12,7 @@ import (
 // URLUsecase определяет интерфейс для бизнес-логики работы с URL
 type URLUsecase interface {
 	CreateShortURLFromString(urlString string) (string, error)
+	CreateShortURLsBatch(urlStrings []string) ([]string, error)
 	GetOriginalURL(code string) (string, error)
 }
 

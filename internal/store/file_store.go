@@ -74,3 +74,27 @@ func (fs *FileStore) loadFromFile() error {
 
 	return nil
 }
+
+// WriteBatch записывает несколько значений в in-memory store и добавляет их в файл
+func (fs *FileStore) WriteBatch(urls URLMap) error {
+	// Сначала записываем в in-memory store
+	if err := fs.store.WriteBatch(urls); err != nil {
+		return fmt.Errorf("failed to write batch to in-memory store: %w", err)
+	}
+
+	// Добавляем все записи в файл
+	for code, url := range urls {
+		entry := model.URLEntry{
+			UUID:        uuid.New().String(),
+			ShortURL:    string(code),
+			OriginalURL: string(url),
+		}
+
+		if err := fs.fileStorage.Append(entry); err != nil {
+			return fmt.Errorf("failed to append to file: %w", err)
+		}
+	}
+
+	return nil
+}
+

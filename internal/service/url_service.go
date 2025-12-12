@@ -59,3 +59,37 @@ func (s *URLService) CreateShortURL(originalURL model.URL) (model.Code, error) {
 
 	return "", fmt.Errorf("%w: after %d tries", ErrMaxRetriesExceeded, MaxTries)
 }
+
+// CreateShortURLsBatch создает короткие URL для нескольких оригинальных URL
+// Генерирует уникальные коды для каждого URL и сохраняет их в одной транзакции
+func (s *URLService) CreateShortURLsBatch(originalURLs []model.URL) ([]model.Code, error) {
+	codes := make([]model.Code, len(originalURLs))
+	urlMap := make(map[model.Code]model.URL)
+
+	for i, originalURL := range originalURLs {
+		// Генерируем код для каждого URL
+		for tries := 0; tries < MaxTries; tries++ {
+			code := model.Code(randomString())
+
+			// Проверяем, что код не конфликтует с уже сгенерированными в этом батче
+			if _, exists := urlMap[code]; !exists {
+				codes[i] = code
+				urlMap[code] = originalURL
+				break
+			}
+
+			// Если последняя попытка не удалась
+			if tries == MaxTries-1 {
+				return nil, fmt.Errorf("%w: after %d tries for URL %s", ErrMaxRetriesExceeded, MaxTries, originalURL)
+			}
+		}
+	}
+
+	// Сохраняем все URL в одной транзакции
+	err := s.repo.CreateURLsBatch(urlMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create URLs batch: %w", err)
+	}
+
+	return codes, nil
+}

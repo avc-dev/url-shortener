@@ -9,12 +9,14 @@ import (
 // URLRepository определяет интерфейс для работы с хранилищем URL
 type URLRepository interface {
 	CreateURL(code model.Code, url model.URL) error
+	CreateURLsBatch(urls map[model.Code]model.URL) error
 	GetURLByCode(code model.Code) (model.URL, error)
 }
 
 // URLService определяет интерфейс для работы с сервисом генерации коротких URL
 type URLService interface {
 	CreateShortURL(originalURL model.URL) (model.Code, error)
+	CreateShortURLsBatch(originalURLs []model.URL) ([]model.Code, error)
 }
 
 // URLUsecase содержит бизнес-логику для работы с URL
