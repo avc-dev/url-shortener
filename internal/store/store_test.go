@@ -463,7 +463,7 @@ func TestStore_ErrorMessages(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), string(code))
-		assert.ErrorIs(t, err, ErrAlreadyExists)
+		assert.ErrorIs(t, err, ErrCodeAlreadyExists)
 	})
 }
 

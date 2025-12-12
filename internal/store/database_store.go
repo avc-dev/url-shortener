@@ -67,7 +67,7 @@ func (ds *DatabaseStore) Write(key model.Code, value model.URL) error {
 	}
 
 	if exists {
-		return fmt.Errorf("key %s: %w", key, ErrAlreadyExists)
+		return fmt.Errorf("code %s: %w", key, ErrCodeAlreadyExists)
 	}
 
 	// Вставляем новую запись
@@ -129,7 +129,7 @@ func (ds *DatabaseStore) WriteBatch(urls map[model.Code]model.URL) error {
 			if err := rows.Scan(&existingCode); err != nil {
 				return fmt.Errorf("failed to scan existing code: %w", err)
 			}
-			return fmt.Errorf("code %s: %w", existingCode, ErrAlreadyExists)
+			return fmt.Errorf("code %s: %w", existingCode, ErrCodeAlreadyExists)
 		}
 		rows.Close()
 	}
@@ -153,4 +153,73 @@ func (ds *DatabaseStore) WriteBatch(urls map[model.Code]model.URL) error {
 	}
 
 	return nil
+}
+
+// CreateOrGetCode создает новый код для URL или возвращает существующий если URL уже есть в базе
+// Использует CTE для атомарной операции с возвратом признака создания
+func (ds *DatabaseStore) CreateOrGetCode(value model.URL) (model.Code, bool, error) {
+	ctx := context.Background()
+
+	// Генерируем новый уникальный код
+	code, err := ds.generateUniqueCode(ctx)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to generate unique code: %w", err)
+	}
+
+	// Используем CTE для атомарной проверки существования URL и вставки
+	query := `
+		WITH existing_url AS (
+			SELECT code FROM urls WHERE original_url = $2
+		),
+		insert_result AS (
+			INSERT INTO urls (code, original_url)
+			SELECT $1, $2
+			WHERE NOT EXISTS (SELECT 1 FROM existing_url)
+			RETURNING code
+		)
+		SELECT
+			COALESCE(existing.code, inserted.code) as final_code,
+			CASE
+				WHEN existing.code IS NOT NULL THEN false
+				WHEN inserted.code IS NOT NULL THEN true
+				ELSE false
+			END as created
+		FROM (SELECT 1) dummy
+		LEFT JOIN existing_url existing ON true
+		LEFT JOIN insert_result inserted ON true
+	`
+
+	var finalCode string
+	var created bool
+
+	err = ds.pool.QueryRow(ctx, query, string(code), string(value)).Scan(&finalCode, &created)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to execute CTE query: %w", err)
+	}
+
+	return model.Code(finalCode), created, nil
+}
+
+// generateUniqueCode генерирует уникальный код, проверяя его отсутствие в базе данных
+func (ds *DatabaseStore) generateUniqueCode(ctx context.Context) (model.Code, error) {
+	const maxRetries = 100
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		code := model.Code(randomString())
+
+		// Проверяем, существует ли такой код
+		var exists bool
+		query := `SELECT EXISTS(SELECT 1 FROM urls WHERE code = $1)`
+
+		err := ds.pool.QueryRow(ctx, query, string(code)).Scan(&exists)
+		if err != nil {
+			return "", fmt.Errorf("failed to check code existence: %w", err)
+		}
+
+		if !exists {
+			return code, nil
+		}
+	}
+
+	return "", fmt.Errorf("failed to generate unique code after %d attempts", maxRetries)
 }

@@ -1,17 +1,19 @@
 package store
 
 import (
-	"maps"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/avc-dev/url-shortener/internal/model"
 )
 
 var (
-	ErrNotFound      = errors.New("key not found")
-	ErrAlreadyExists = errors.New("key already exists")
+	ErrNotFound          = errors.New("key not found")
+	ErrAlreadyExists     = errors.New("key already exists")
+	ErrCodeAlreadyExists = errors.New("code already exists")
+	ErrURLAlreadyExists  = errors.New("URL already exists")
 )
 
 // URLMap представляет маппинг коротких кодов на оригинальные URL
@@ -48,7 +50,7 @@ func (s *Store) Write(key model.Code, value model.URL) error {
 
 	// Проверяем существование ключа напрямую, без вызова Read (чтобы избежать deadlock)
 	if _, exists := s.store[key]; exists {
-		return fmt.Errorf("key %s: %w", key, ErrAlreadyExists)
+		return fmt.Errorf("code %s: %w", key, ErrCodeAlreadyExists)
 	}
 
 	s.store[key] = value
@@ -73,7 +75,7 @@ func (s *Store) WriteBatch(urls URLMap) error {
 	// Проверяем существование всех кодов перед вставкой
 	for code := range urls {
 		if _, exists := s.store[code]; exists {
-			return fmt.Errorf("key %s: %w", code, ErrAlreadyExists)
+			return fmt.Errorf("code %s: %w", code, ErrCodeAlreadyExists)
 		}
 	}
 
@@ -83,4 +85,26 @@ func (s *Store) WriteBatch(urls URLMap) error {
 	}
 
 	return nil
+}
+
+// CreateOrGetCode создает новый код для URL или возвращает существующий если URL уже есть в хранилище
+func (s *Store) CreateOrGetCode(value model.URL) (model.Code, bool, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Проверяем, существует ли уже такой URL
+	for existingCode, existingURL := range s.store {
+		if existingURL == value {
+			return existingCode, false, nil // false = не создана новая запись
+		}
+	}
+
+	// Если URL не существует, создаем новый код
+	for {
+		code := model.Code(randomString())
+		if _, exists := s.store[code]; !exists {
+			s.store[code] = value
+			return code, true, nil // true = создана новая запись
+		}
+	}
 }

@@ -20,6 +20,69 @@ func (_m *MockURLRepository) EXPECT() *MockURLRepository_Expecter {
 	return &MockURLRepository_Expecter{mock: &_m.Mock}
 }
 
+// CreateOrGetCode provides a mock function with given fields: url
+func (_m *MockURLRepository) CreateOrGetCode(url model.URL) (model.Code, bool, error) {
+	ret := _m.Called(url)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateOrGetCode")
+	}
+
+	var r0 model.Code
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(model.URL) (model.Code, bool, error)); ok {
+		return rf(url)
+	}
+	if rf, ok := ret.Get(0).(func(model.URL) model.Code); ok {
+		r0 = rf(url)
+	} else {
+		r0 = ret.Get(0).(model.Code)
+	}
+
+	if rf, ok := ret.Get(1).(func(model.URL) bool); ok {
+		r1 = rf(url)
+	} else {
+		r1 = ret.Get(1).(bool)
+	}
+
+	if rf, ok := ret.Get(2).(func(model.URL) error); ok {
+		r2 = rf(url)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockURLRepository_CreateOrGetCode_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateOrGetCode'
+type MockURLRepository_CreateOrGetCode_Call struct {
+	*mock.Call
+}
+
+// CreateOrGetCode is a helper method to define mock.On call
+//   - url model.URL
+func (_e *MockURLRepository_Expecter) CreateOrGetCode(url interface{}) *MockURLRepository_CreateOrGetCode_Call {
+	return &MockURLRepository_CreateOrGetCode_Call{Call: _e.mock.On("CreateOrGetCode", url)}
+}
+
+func (_c *MockURLRepository_CreateOrGetCode_Call) Run(run func(url model.URL)) *MockURLRepository_CreateOrGetCode_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(model.URL))
+	})
+	return _c
+}
+
+func (_c *MockURLRepository_CreateOrGetCode_Call) Return(_a0 model.Code, _a1 bool, _a2 error) *MockURLRepository_CreateOrGetCode_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockURLRepository_CreateOrGetCode_Call) RunAndReturn(run func(model.URL) (model.Code, bool, error)) *MockURLRepository_CreateOrGetCode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateURL provides a mock function with given fields: code, url
 func (_m *MockURLRepository) CreateURL(code model.Code, url model.URL) error {
 	ret := _m.Called(code, url)

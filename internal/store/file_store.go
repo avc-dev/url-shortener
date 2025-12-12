@@ -98,3 +98,25 @@ func (fs *FileStore) WriteBatch(urls URLMap) error {
 	return nil
 }
 
+// CreateOrGetCode создает новый код для URL или возвращает существующий
+func (fs *FileStore) CreateOrGetCode(value model.URL) (model.Code, bool, error) {
+	code, created, err := fs.store.CreateOrGetCode(value)
+	if err != nil {
+		return "", false, err
+	}
+
+	// Если создана новая запись, сохраняем в файл
+	if created {
+		entry := model.URLEntry{
+			UUID:        uuid.New().String(),
+			ShortURL:    string(code),
+			OriginalURL: string(value),
+		}
+
+		if err := fs.fileStorage.Append(entry); err != nil {
+			return "", false, fmt.Errorf("failed to append to file: %w", err)
+		}
+	}
+
+	return code, created, nil
+}

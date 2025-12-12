@@ -35,7 +35,7 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 	}
 
 	repo := repository.New(storage)
-	urlService := service.NewURLService(repo)
+	urlService := service.NewURLService(repo, cfg)
 	urlUsecase := usecase.NewURLUsecase(repo, urlService, cfg, logger)
 	h := handler.New(urlUsecase, logger, dbPool)
 
