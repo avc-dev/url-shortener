@@ -7,6 +7,7 @@ import (
 	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/config/db"
 	"github.com/avc-dev/url-shortener/internal/handler"
+	"github.com/avc-dev/url-shortener/internal/migrations"
 	"github.com/avc-dev/url-shortener/internal/repository"
 	"github.com/avc-dev/url-shortener/internal/service"
 	"github.com/avc-dev/url-shortener/internal/store"
@@ -41,7 +42,7 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 	return h, dbPool, nil
 }
 
-// initDatabase инициализирует подключение к базе данных
+// initDatabase инициализирует подключение к базе данных и применяет миграции
 func initDatabase(cfg *config.Config, logger *zap.Logger) (db.Database, error) {
 	ctx := context.Background()
 	dbConfig := db.NewConfig(cfg.DatabaseDSN)
@@ -52,6 +53,14 @@ func initDatabase(cfg *config.Config, logger *zap.Logger) (db.Database, error) {
 	}
 
 	logger.Info("Connected to database", zap.String("dsn", cfg.DatabaseDSN))
+
+	// Применяем миграции автоматически
+	migrator := migrations.NewMigrator(pool.DB(), logger)
+	if err := migrator.RunUp(); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("failed to run database migrations: %w", err)
+	}
+
 	return pool, nil
 }
 

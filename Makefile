@@ -38,13 +38,16 @@ docker-logs:
 check-migrate:
 	@command -v migrate >/dev/null 2>&1 || { echo "migrate tool is not installed. Please install it from https://github.com/golang-migrate/migrate/tree/master/cmd/migrate" >&2; exit 1; }
 
-# Setup migrations
-.PHONY: migrate-up
-migrate-up: check-migrate
-	migrate -path migrations/schema -database "${POSTGRES_URL}" -verbose up
+# Build and run the application (migrations will be applied automatically if DB is used)
+.PHONY: run
+run: build
+	@echo "Starting application..."
+	@./bin/shortener
 
-# Uninstall migrations
-.PHONY: migrate-down
-migrate-down: check-migrate
-	migrate -path migrations/schema -database "${POSTGRES_URL}" -verbose down
+# Build the application
+.PHONY: build
+build:
+	@echo "Building application..."
+	@mkdir -p bin
+	@go build -o bin/shortener ./cmd/shortener
 
