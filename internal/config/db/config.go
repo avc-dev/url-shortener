@@ -2,10 +2,12 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib" // Регистрируем pgx драйвер для database/sql
 )
 
 // Config содержит настройки подключения к базе данных
@@ -36,8 +38,27 @@ func (c *Config) Connect(ctx context.Context) (Database, error) {
 		return nil, fmt.Errorf("database DSN is required")
 	}
 
+	// Создаем sql.DB с pgx драйвером для миграций
+	sqlDB, err := sql.Open("pgx", c.DSN)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open sql database: %w", err)
+	}
+
+	// Настраиваем соединение
+	sqlDB.SetMaxOpenConns(int(c.MaxConns))
+	sqlDB.SetMaxIdleConns(int(c.MinConns))
+	sqlDB.SetConnMaxLifetime(c.MaxConnLifetime)
+	sqlDB.SetConnMaxIdleTime(c.MaxConnIdleTime)
+
+	// Проверяем подключение
+	if err := sqlDB.PingContext(ctx); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
 	config, err := pgxpool.ParseConfig(c.DSN)
 	if err != nil {
+		sqlDB.Close()
 		return nil, fmt.Errorf("failed to parse database config: %w", err)
 	}
 
@@ -50,16 +71,18 @@ func (c *Config) Connect(ctx context.Context) (Database, error) {
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
+		sqlDB.Close()
 		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}
 
 	// Проверяем подключение
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
+		sqlDB.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return pool, nil
+	return NewDBAdapter(pool, sqlDB), nil
 }
 
 //go:generate mockery --name Database
@@ -68,9 +91,43 @@ func (c *Config) Connect(ctx context.Context) (Database, error) {
 type Database interface {
 	Ping(ctx context.Context) error
 	Close()
+	// Возвращает *sql.DB для миграций и других операций
+	DB() *sql.DB
 }
 
 // Ping проверяет подключение к базе данных
 func Ping(ctx context.Context, db Database) error {
 	return db.Ping(ctx)
+}
+
+// DBAdapter адаптер для pgxpool.Pool к Database интерфейсу
+type DBAdapter struct {
+	Pool  *pgxpool.Pool
+	SqlDB *sql.DB
+}
+
+// NewDBAdapter создает новый адаптер
+func NewDBAdapter(pool *pgxpool.Pool, sqlDB *sql.DB) *DBAdapter {
+	return &DBAdapter{
+		Pool:  pool,
+		SqlDB: sqlDB,
+	}
+}
+
+// Ping проверяет подключение
+func (d *DBAdapter) Ping(ctx context.Context) error {
+	return d.Pool.Ping(ctx)
+}
+
+// Close закрывает соединения
+func (d *DBAdapter) Close() {
+	d.Pool.Close()
+	if d.SqlDB != nil {
+		d.SqlDB.Close()
+	}
+}
+
+// DB возвращает *sql.DB
+func (d *DBAdapter) DB() *sql.DB {
+	return d.SqlDB
 }

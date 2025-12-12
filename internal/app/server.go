@@ -20,4 +20,3 @@ func (a *App) start() error {
 
 	return nil
 }
-

@@ -25,7 +25,7 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 		}
 	}
 
-	storage, err := initStorage(cfg, logger)
+	storage, err := initStorage(cfg, dbPool, logger)
 	if err != nil {
 		if dbPool != nil {
 			dbPool.Close()
@@ -55,8 +55,18 @@ func initDatabase(cfg *config.Config, logger *zap.Logger) (db.Database, error) {
 	return pool, nil
 }
 
-// initStorage создает хранилище на основе конфигурации
-func initStorage(cfg *config.Config, logger *zap.Logger) (repository.Store, error) {
+// initStorage создает хранилище на основе конфигурации с приоритетом:
+// 1. PostgreSQL (если доступна БД)
+// 2. File storage (если указан путь к файлу)
+// 3. In-memory storage
+func initStorage(cfg *config.Config, dbPool db.Database, logger *zap.Logger) (repository.Store, error) {
+	// Приоритет 1: PostgreSQL
+	if dbPool != nil {
+		logger.Info("Using PostgreSQL storage")
+		return store.NewDatabaseStore(dbPool), nil
+	}
+
+	// Приоритет 2: File storage
 	if cfg.FileStoragePath != "" {
 		fileStore, err := store.NewFileStore(cfg.FileStoragePath)
 		if err != nil {
@@ -66,6 +76,7 @@ func initStorage(cfg *config.Config, logger *zap.Logger) (repository.Store, erro
 		return fileStore, nil
 	}
 
+	// Приоритет 3: In-memory storage
 	logger.Info("Using in-memory storage")
 	return store.NewStore(), nil
 }
