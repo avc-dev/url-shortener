@@ -155,16 +155,10 @@ func (ds *DatabaseStore) WriteBatch(urls map[model.Code]model.URL) error {
 	return nil
 }
 
-// CreateOrGetCode создает новый код для URL или возвращает существующий если URL уже есть в базе
-// Использует CTE для атомарной операции с возвратом признака создания
-func (ds *DatabaseStore) CreateOrGetCode(value model.URL) (model.Code, bool, error) {
+// CreateOrGetURL создает новую запись или возвращает код существующей для данного URL
+// Использует CTE для атомарной проверки существования и вставки без изменения существующего кода
+func (ds *DatabaseStore) CreateOrGetURL(code model.Code, url model.URL) (model.Code, bool, error) {
 	ctx := context.Background()
-
-	// Генерируем новый уникальный код
-	code, err := ds.generateUniqueCode(ctx)
-	if err != nil {
-		return "", false, fmt.Errorf("failed to generate unique code: %w", err)
-	}
 
 	// Используем CTE для атомарной проверки существования URL и вставки
 	query := `
@@ -192,34 +186,41 @@ func (ds *DatabaseStore) CreateOrGetCode(value model.URL) (model.Code, bool, err
 	var finalCode string
 	var created bool
 
-	err = ds.pool.QueryRow(ctx, query, string(code), string(value)).Scan(&finalCode, &created)
+	err := ds.pool.QueryRow(ctx, query, string(code), string(url)).Scan(&finalCode, &created)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to execute CTE query: %w", err)
+		return "", false, fmt.Errorf("failed to create or get URL: %w", err)
 	}
 
 	return model.Code(finalCode), created, nil
 }
 
-// generateUniqueCode генерирует уникальный код, проверяя его отсутствие в базе данных
-func (ds *DatabaseStore) generateUniqueCode(ctx context.Context) (model.Code, error) {
-	const maxRetries = 100
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		code := model.Code(randomString())
+// IsCodeUnique проверяет, свободен ли код в базе данных
+func (ds *DatabaseStore) IsCodeUnique(code model.Code) bool {
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM urls WHERE code = $1)`
 
-		// Проверяем, существует ли такой код
-		var exists bool
-		query := `SELECT EXISTS(SELECT 1 FROM urls WHERE code = $1)`
-
-		err := ds.pool.QueryRow(ctx, query, string(code)).Scan(&exists)
-		if err != nil {
-			return "", fmt.Errorf("failed to check code existence: %w", err)
-		}
-
-		if !exists {
-			return code, nil
-		}
+	err := ds.pool.QueryRow(context.Background(), query, string(code)).Scan(&exists)
+	if err != nil {
+		// В случае ошибки считаем код занятым для безопасности
+		return false
 	}
 
-	return "", fmt.Errorf("failed to generate unique code after %d attempts", maxRetries)
+	return !exists
+}
+
+// GetCodeByURL возвращает код для существующего URL
+func (ds *DatabaseStore) GetCodeByURL(url model.URL) (model.Code, error) {
+	var code string
+	query := `SELECT code FROM urls WHERE original_url = $1`
+
+	err := ds.pool.QueryRow(context.Background(), query, string(url)).Scan(&code)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", fmt.Errorf("URL not found: %w", ErrNotFound)
+		}
+		return "", fmt.Errorf("failed to get code by URL: %w", err)
+	}
+
+	return model.Code(code), nil
 }

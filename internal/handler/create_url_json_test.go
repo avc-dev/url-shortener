@@ -131,6 +131,11 @@ func TestCreateURLJSON_ErrorMapping(t *testing.T) {
 			expectedHTTPStatus: http.StatusInternalServerError,
 		},
 		{
+			name:               "URLAlreadyExistsError maps to 409",
+			usecaseError:       usecase.URLAlreadyExistsError{Code: "http://localhost:8080/abc123"},
+			expectedHTTPStatus: http.StatusConflict,
+		},
+		{
 			name:               "Unknown error maps to 500",
 			usecaseError:       errors.New("unknown error"),
 			expectedHTTPStatus: http.StatusInternalServerError,
@@ -271,4 +276,45 @@ func TestCreateURLJSON_PassesURLAsIs(t *testing.T) {
 
 	// Assert - usecase получил правильные данные
 	mockUsecase.AssertExpectations(t)
+}
+
+// TestCreateURLJSON_URLAlreadyExists проверяет возврат существующего кода при конфликте URL
+func TestCreateURLJSON_URLAlreadyExists(t *testing.T) {
+	// Arrange
+	mockUsecase := mocks.NewMockURLUsecase(t)
+	existingShortURL := "http://localhost:8080/existing"
+	mockUsecase.EXPECT().
+		CreateShortURLFromString("https://example.com").
+		Return("", usecase.URLAlreadyExistsError{Code: existingShortURL}).
+		Once()
+
+	handler := New(mockUsecase, zap.NewNop(), nil)
+
+	requestBody := ShortenRequest{URL: "https://example.com"}
+	bodyBytes, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewBuffer(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Act
+	handler.CreateURLJSON(w, req)
+
+	// Assert
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+
+	// Проверяем структуру ответа
+	bodyBytes, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response ShortenResponse
+	err = json.Unmarshal(bodyBytes, &response)
+	require.NoError(t, err)
+
+	assert.Equal(t, existingShortURL, response.Result)
 }

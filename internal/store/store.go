@@ -87,24 +87,47 @@ func (s *Store) WriteBatch(urls URLMap) error {
 	return nil
 }
 
-// CreateOrGetCode создает новый код для URL или возвращает существующий если URL уже есть в хранилище
-func (s *Store) CreateOrGetCode(value model.URL) (model.Code, bool, error) {
+// CreateOrGetURL создает новую запись или возвращает код существующей для данного URL
+func (s *Store) CreateOrGetURL(code model.Code, url model.URL) (model.Code, bool, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	// Проверяем, существует ли уже такой URL
 	for existingCode, existingURL := range s.store {
-		if existingURL == value {
+		if existingURL == url {
 			return existingCode, false, nil // false = не создана новая запись
 		}
 	}
 
-	// Если URL не существует, создаем новый код
-	for {
-		code := model.Code(randomString())
-		if _, exists := s.store[code]; !exists {
-			s.store[code] = value
-			return code, true, nil // true = создана новая запись
+	// Проверяем, свободен ли код
+	if _, exists := s.store[code]; exists {
+		return "", false, fmt.Errorf("code %s: %w", code, ErrCodeAlreadyExists)
+	}
+
+	// Создаем новую запись
+	s.store[code] = url
+	return code, true, nil // true = создана новая запись
+}
+
+// IsCodeUnique проверяет, свободен ли код в хранилище
+func (s *Store) IsCodeUnique(code model.Code) bool {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	_, exists := s.store[code]
+	return !exists
+}
+
+// GetCodeByURL возвращает код для существующего URL
+func (s *Store) GetCodeByURL(url model.URL) (model.Code, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	for code, existingURL := range s.store {
+		if existingURL == url {
+			return code, nil
 		}
 	}
+
+	return "", fmt.Errorf("URL not found: %w", ErrNotFound)
 }

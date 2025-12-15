@@ -12,14 +12,16 @@ import (
 type URLService struct {
 	repo          URLRepository
 	codeGenerator Generator
+	cfg           *config.Config
 }
 
 // NewURLService создает новый экземпляр URLService
 func NewURLService(repo URLRepository, cfg *config.Config) *URLService {
-	codeGenerator := NewCodeGenerator(repo, cfg)
+	codeGenerator := NewCodeGenerator()
 	return &URLService{
 		repo:          repo,
 		codeGenerator: codeGenerator,
+		cfg:           cfg,
 	}
 }
 
@@ -27,31 +29,75 @@ func NewURLService(repo URLRepository, cfg *config.Config) *URLService {
 // Генерирует уникальный код и сохраняет его вместе с оригинальным URL
 // Если URL уже существует, возвращает ошибку с существующим кодом
 func (s *URLService) CreateShortURL(originalURL model.URL) (model.Code, error) {
-	// Сначала проверяем, существует ли уже такой URL
-	code, created, err := s.repo.CreateOrGetCode(originalURL)
+	// Генерируем уникальный код
+	code, err := s.generateUniqueCode()
 	if err != nil {
-		return "", fmt.Errorf("failed to check URL existence: %w", err)
+		return "", fmt.Errorf("failed to generate unique code: %w", err)
+	}
+
+	// Создаем запись или получаем существующую для данного URL
+	finalCode, created, err := s.repo.CreateOrGetURL(code, originalURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to create or get URL: %w", err)
 	}
 
 	// Если URL уже существовал, возвращаем ошибку
 	if !created {
-		return code, fmt.Errorf("URL already exists: %w", store.ErrURLAlreadyExists)
+		return finalCode, fmt.Errorf("URL already exists: %w", store.ErrURLAlreadyExists)
 	}
 
-	return code, nil
+	return finalCode, nil
+}
+
+// generateUniqueCode генерирует уникальный код, проверяя его через IsCodeUnique
+func (s *URLService) generateUniqueCode() (model.Code, error) {
+	for attempt := 0; attempt < s.cfg.Retry.MaxAttempts; attempt++ {
+		code := s.codeGenerator.GenerateCode()
+		if s.repo.IsCodeUnique(code) {
+			return code, nil
+		}
+	}
+
+	return "", fmt.Errorf("failed to generate unique code after %d attempts: %w", s.cfg.Retry.MaxAttempts, ErrMaxRetriesExceeded)
+}
+
+// generateUniqueCodeForBatch генерирует уникальный код для батча, учитывая уже использованные коды в рамках батча
+func (s *URLService) generateUniqueCodeForBatch(usedInBatch map[model.Code]bool) (model.Code, error) {
+	for attempt := 0; attempt < s.cfg.Retry.MaxAttempts; attempt++ {
+		code := s.codeGenerator.GenerateCode()
+
+		// Проверяем конфликт в рамках батча
+		if usedInBatch[code] {
+			continue
+		}
+
+		// Проверяем конфликт в хранилище
+		if s.repo.IsCodeUnique(code) {
+			return code, nil
+		}
+	}
+
+	return "", fmt.Errorf("failed to generate unique code for batch after %d attempts: %w", s.cfg.Retry.MaxAttempts, ErrMaxRetriesExceeded)
 }
 
 // CreateShortURLsBatch создает короткие URL для нескольких оригинальных URL
 // Генерирует уникальные коды для каждого URL и сохраняет их в одной транзакции
 func (s *URLService) CreateShortURLsBatch(originalURLs []model.URL) ([]model.Code, error) {
-	// Генерируем уникальные коды для всех URL
-	urlMap, err := s.codeGenerator.GenerateBatchCodes(originalURLs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate unique codes: %w", err)
+	urlMap := make(map[model.Code]model.URL)
+	usedCodes := make(map[model.Code]bool)
+
+	// Генерируем уникальные коды для каждого URL
+	for _, url := range originalURLs {
+		code, err := s.generateUniqueCodeForBatch(usedCodes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate unique code for batch: %w", err)
+		}
+		urlMap[code] = url
+		usedCodes[code] = true
 	}
 
 	// Сохраняем все URL в одной транзакции
-	err = s.repo.CreateURLsBatch(urlMap)
+	err := s.repo.CreateURLsBatch(urlMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create URLs batch: %w", err)
 	}

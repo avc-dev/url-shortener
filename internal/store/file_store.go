@@ -98,9 +98,19 @@ func (fs *FileStore) WriteBatch(urls URLMap) error {
 	return nil
 }
 
-// CreateOrGetCode создает новый код для URL или возвращает существующий
-func (fs *FileStore) CreateOrGetCode(value model.URL) (model.Code, bool, error) {
-	code, created, err := fs.store.CreateOrGetCode(value)
+// IsCodeUnique проверяет, свободен ли код
+func (fs *FileStore) IsCodeUnique(code model.Code) bool {
+	return fs.store.IsCodeUnique(code)
+}
+
+// GetCodeByURL возвращает код для существующего URL
+func (fs *FileStore) GetCodeByURL(url model.URL) (model.Code, error) {
+	return fs.store.GetCodeByURL(url)
+}
+
+// CreateOrGetURL создает новую запись или возвращает код существующей для данного URL
+func (fs *FileStore) CreateOrGetURL(code model.Code, url model.URL) (model.Code, bool, error) {
+	finalCode, created, err := fs.store.CreateOrGetURL(code, url)
 	if err != nil {
 		return "", false, err
 	}
@@ -109,8 +119,8 @@ func (fs *FileStore) CreateOrGetCode(value model.URL) (model.Code, bool, error) 
 	if created {
 		entry := model.URLEntry{
 			UUID:        uuid.New().String(),
-			ShortURL:    string(code),
-			OriginalURL: string(value),
+			ShortURL:    string(finalCode),
+			OriginalURL: string(url),
 		}
 
 		if err := fs.fileStorage.Append(entry); err != nil {
@@ -118,5 +128,5 @@ func (fs *FileStore) CreateOrGetCode(value model.URL) (model.Code, bool, error) 
 		}
 	}
 
-	return code, created, nil
+	return finalCode, created, nil
 }
