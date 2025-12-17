@@ -76,6 +76,64 @@ func (_c *MockURLService_CreateShortURL_Call) RunAndReturn(run func(model.URL) (
 	return _c
 }
 
+// CreateShortURLsBatch provides a mock function with given fields: originalURLs
+func (_m *MockURLService) CreateShortURLsBatch(originalURLs []model.URL) ([]model.Code, error) {
+	ret := _m.Called(originalURLs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateShortURLsBatch")
+	}
+
+	var r0 []model.Code
+	var r1 error
+	if rf, ok := ret.Get(0).(func([]model.URL) ([]model.Code, error)); ok {
+		return rf(originalURLs)
+	}
+	if rf, ok := ret.Get(0).(func([]model.URL) []model.Code); ok {
+		r0 = rf(originalURLs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.Code)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func([]model.URL) error); ok {
+		r1 = rf(originalURLs)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockURLService_CreateShortURLsBatch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateShortURLsBatch'
+type MockURLService_CreateShortURLsBatch_Call struct {
+	*mock.Call
+}
+
+// CreateShortURLsBatch is a helper method to define mock.On call
+//   - originalURLs []model.URL
+func (_e *MockURLService_Expecter) CreateShortURLsBatch(originalURLs interface{}) *MockURLService_CreateShortURLsBatch_Call {
+	return &MockURLService_CreateShortURLsBatch_Call{Call: _e.mock.On("CreateShortURLsBatch", originalURLs)}
+}
+
+func (_c *MockURLService_CreateShortURLsBatch_Call) Run(run func(originalURLs []model.URL)) *MockURLService_CreateShortURLsBatch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]model.URL))
+	})
+	return _c
+}
+
+func (_c *MockURLService_CreateShortURLsBatch_Call) Return(_a0 []model.Code, _a1 error) *MockURLService_CreateShortURLsBatch_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockURLService_CreateShortURLsBatch_Call) RunAndReturn(run func([]model.URL) ([]model.Code, error)) *MockURLService_CreateShortURLsBatch_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockURLService creates a new instance of MockURLService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockURLService(t interface {

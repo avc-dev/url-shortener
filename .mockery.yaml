@@ -2,11 +2,17 @@ with-expecter: true
 dir: "internal/mocks"
 outpkg: mocks
 packages:
+  github.com/avc-dev/url-shortener/internal/usecase:
+    interfaces:
+      URLService:
   github.com/avc-dev/url-shortener/internal/handler:
     interfaces:
-      URLRepository:
-      URLService:
+      URLUsecase:
   github.com/avc-dev/url-shortener/internal/service:
     interfaces:
+      URLRepository:
       CodeChecker:
+  github.com/avc-dev/url-shortener/internal/config/db:
+    interfaces:
+      Database:
 

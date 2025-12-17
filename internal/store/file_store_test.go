@@ -94,7 +94,7 @@ func TestFileStore_WriteExistingKey(t *testing.T) {
 
 	// Вторая запись с тем же ключом должна вернуть ошибку
 	err = fs.Write(code, url2)
-	assert.ErrorIs(t, err, ErrAlreadyExists)
+	assert.ErrorIs(t, err, ErrCodeAlreadyExists)
 }
 
 func TestFileStore_ReadNonExistentKey(t *testing.T) {

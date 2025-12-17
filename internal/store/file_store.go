@@ -74,3 +74,59 @@ func (fs *FileStore) loadFromFile() error {
 
 	return nil
 }
+
+// WriteBatch записывает несколько значений в in-memory store и добавляет их в файл
+func (fs *FileStore) WriteBatch(urls URLMap) error {
+	// Сначала записываем в in-memory store
+	if err := fs.store.WriteBatch(urls); err != nil {
+		return fmt.Errorf("failed to write batch to in-memory store: %w", err)
+	}
+
+	// Добавляем все записи в файл
+	for code, url := range urls {
+		entry := model.URLEntry{
+			UUID:        uuid.New().String(),
+			ShortURL:    string(code),
+			OriginalURL: string(url),
+		}
+
+		if err := fs.fileStorage.Append(entry); err != nil {
+			return fmt.Errorf("failed to append to file: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// IsCodeUnique проверяет, свободен ли код
+func (fs *FileStore) IsCodeUnique(code model.Code) bool {
+	return fs.store.IsCodeUnique(code)
+}
+
+// GetCodeByURL возвращает код для существующего URL
+func (fs *FileStore) GetCodeByURL(url model.URL) (model.Code, error) {
+	return fs.store.GetCodeByURL(url)
+}
+
+// CreateOrGetURL создает новую запись или возвращает код существующей для данного URL
+func (fs *FileStore) CreateOrGetURL(code model.Code, url model.URL) (model.Code, bool, error) {
+	finalCode, created, err := fs.store.CreateOrGetURL(code, url)
+	if err != nil {
+		return "", false, err
+	}
+
+	// Если создана новая запись, сохраняем в файл
+	if created {
+		entry := model.URLEntry{
+			UUID:        uuid.New().String(),
+			ShortURL:    string(finalCode),
+			OriginalURL: string(url),
+		}
+
+		if err := fs.fileStorage.Append(entry); err != nil {
+			return "", false, fmt.Errorf("failed to append to file: %w", err)
+		}
+	}
+
+	return finalCode, created, nil
+}

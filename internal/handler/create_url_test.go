@@ -26,7 +26,7 @@ func TestCreateURL_Success(t *testing.T) {
 		Return(expectedShortURL, nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop())
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	body := bytes.NewBufferString("https://example.com")
 	req := httptest.NewRequest(http.MethodPost, "/", body)
@@ -58,7 +58,7 @@ func TestCreateURL_EmptyBody(t *testing.T) {
 		Return("", usecase.ErrEmptyURL).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop())
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(""))
 	w := httptest.NewRecorder()
@@ -78,7 +78,7 @@ func TestCreateURL_EmptyBody(t *testing.T) {
 func TestCreateURL_ReadBodyError(t *testing.T) {
 	// Arrange
 	mockUsecase := mocks.NewMockURLUsecase(t)
-	handler := New(mockUsecase, zap.NewNop())
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	// Создаем reader который всегда возвращает ошибку
 	errorReader := &errorReader{err: errors.New("read error")}
@@ -137,7 +137,7 @@ func TestCreateURL_ErrorMapping(t *testing.T) {
 				Return("", tt.usecaseError).
 				Once()
 
-			handler := New(mockUsecase, zap.NewNop())
+			handler := New(mockUsecase, zap.NewNop(), nil)
 
 			body := bytes.NewBufferString("https://example.com")
 			req := httptest.NewRequest(http.MethodPost, "/", body)
@@ -165,7 +165,7 @@ func TestCreateURL_ContentType(t *testing.T) {
 		Return("http://localhost:8080/testcode", nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop())
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	body := bytes.NewBufferString("https://example.com")
 	req := httptest.NewRequest(http.MethodPost, "/", body)
@@ -193,7 +193,7 @@ func TestCreateURL_ResponseBody(t *testing.T) {
 		Return(expectedShortURL, nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop())
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	body := bytes.NewBufferString("https://practicum.yandex.ru")
 	req := httptest.NewRequest(http.MethodPost, "/", body)
@@ -244,7 +244,7 @@ func TestCreateURL_PassesBodyAsIs(t *testing.T) {
 				Return("http://localhost:8080/testcode", nil).
 				Once()
 
-			handler := New(mockUsecase, zap.NewNop())
+			handler := New(mockUsecase, zap.NewNop(), nil)
 
 			body := bytes.NewBufferString(tt.inputURL)
 			req := httptest.NewRequest(http.MethodPost, "/", body)

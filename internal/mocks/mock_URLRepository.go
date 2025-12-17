@@ -20,6 +20,70 @@ func (_m *MockURLRepository) EXPECT() *MockURLRepository_Expecter {
 	return &MockURLRepository_Expecter{mock: &_m.Mock}
 }
 
+// CreateOrGetURL provides a mock function with given fields: code, url
+func (_m *MockURLRepository) CreateOrGetURL(code model.Code, url model.URL) (model.Code, bool, error) {
+	ret := _m.Called(code, url)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateOrGetURL")
+	}
+
+	var r0 model.Code
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(model.Code, model.URL) (model.Code, bool, error)); ok {
+		return rf(code, url)
+	}
+	if rf, ok := ret.Get(0).(func(model.Code, model.URL) model.Code); ok {
+		r0 = rf(code, url)
+	} else {
+		r0 = ret.Get(0).(model.Code)
+	}
+
+	if rf, ok := ret.Get(1).(func(model.Code, model.URL) bool); ok {
+		r1 = rf(code, url)
+	} else {
+		r1 = ret.Get(1).(bool)
+	}
+
+	if rf, ok := ret.Get(2).(func(model.Code, model.URL) error); ok {
+		r2 = rf(code, url)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockURLRepository_CreateOrGetURL_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateOrGetURL'
+type MockURLRepository_CreateOrGetURL_Call struct {
+	*mock.Call
+}
+
+// CreateOrGetURL is a helper method to define mock.On call
+//   - code model.Code
+//   - url model.URL
+func (_e *MockURLRepository_Expecter) CreateOrGetURL(code interface{}, url interface{}) *MockURLRepository_CreateOrGetURL_Call {
+	return &MockURLRepository_CreateOrGetURL_Call{Call: _e.mock.On("CreateOrGetURL", code, url)}
+}
+
+func (_c *MockURLRepository_CreateOrGetURL_Call) Run(run func(code model.Code, url model.URL)) *MockURLRepository_CreateOrGetURL_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(model.Code), args[1].(model.URL))
+	})
+	return _c
+}
+
+func (_c *MockURLRepository_CreateOrGetURL_Call) Return(_a0 model.Code, _a1 bool, _a2 error) *MockURLRepository_CreateOrGetURL_Call {
+	_c.Call.Return(_a0, _a1, _a2)
+	return _c
+}
+
+func (_c *MockURLRepository_CreateOrGetURL_Call) RunAndReturn(run func(model.Code, model.URL) (model.Code, bool, error)) *MockURLRepository_CreateOrGetURL_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateURL provides a mock function with given fields: code, url
 func (_m *MockURLRepository) CreateURL(code model.Code, url model.URL) error {
 	ret := _m.Called(code, url)
@@ -63,6 +127,108 @@ func (_c *MockURLRepository_CreateURL_Call) Return(_a0 error) *MockURLRepository
 }
 
 func (_c *MockURLRepository_CreateURL_Call) RunAndReturn(run func(model.Code, model.URL) error) *MockURLRepository_CreateURL_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CreateURLsBatch provides a mock function with given fields: urls
+func (_m *MockURLRepository) CreateURLsBatch(urls map[model.Code]model.URL) error {
+	ret := _m.Called(urls)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateURLsBatch")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(map[model.Code]model.URL) error); ok {
+		r0 = rf(urls)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockURLRepository_CreateURLsBatch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateURLsBatch'
+type MockURLRepository_CreateURLsBatch_Call struct {
+	*mock.Call
+}
+
+// CreateURLsBatch is a helper method to define mock.On call
+//   - urls map[model.Code]model.URL
+func (_e *MockURLRepository_Expecter) CreateURLsBatch(urls interface{}) *MockURLRepository_CreateURLsBatch_Call {
+	return &MockURLRepository_CreateURLsBatch_Call{Call: _e.mock.On("CreateURLsBatch", urls)}
+}
+
+func (_c *MockURLRepository_CreateURLsBatch_Call) Run(run func(urls map[model.Code]model.URL)) *MockURLRepository_CreateURLsBatch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(map[model.Code]model.URL))
+	})
+	return _c
+}
+
+func (_c *MockURLRepository_CreateURLsBatch_Call) Return(_a0 error) *MockURLRepository_CreateURLsBatch_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockURLRepository_CreateURLsBatch_Call) RunAndReturn(run func(map[model.Code]model.URL) error) *MockURLRepository_CreateURLsBatch_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetCodeByURL provides a mock function with given fields: url
+func (_m *MockURLRepository) GetCodeByURL(url model.URL) (model.Code, error) {
+	ret := _m.Called(url)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetCodeByURL")
+	}
+
+	var r0 model.Code
+	var r1 error
+	if rf, ok := ret.Get(0).(func(model.URL) (model.Code, error)); ok {
+		return rf(url)
+	}
+	if rf, ok := ret.Get(0).(func(model.URL) model.Code); ok {
+		r0 = rf(url)
+	} else {
+		r0 = ret.Get(0).(model.Code)
+	}
+
+	if rf, ok := ret.Get(1).(func(model.URL) error); ok {
+		r1 = rf(url)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockURLRepository_GetCodeByURL_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetCodeByURL'
+type MockURLRepository_GetCodeByURL_Call struct {
+	*mock.Call
+}
+
+// GetCodeByURL is a helper method to define mock.On call
+//   - url model.URL
+func (_e *MockURLRepository_Expecter) GetCodeByURL(url interface{}) *MockURLRepository_GetCodeByURL_Call {
+	return &MockURLRepository_GetCodeByURL_Call{Call: _e.mock.On("GetCodeByURL", url)}
+}
+
+func (_c *MockURLRepository_GetCodeByURL_Call) Run(run func(url model.URL)) *MockURLRepository_GetCodeByURL_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(model.URL))
+	})
+	return _c
+}
+
+func (_c *MockURLRepository_GetCodeByURL_Call) Return(_a0 model.Code, _a1 error) *MockURLRepository_GetCodeByURL_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockURLRepository_GetCodeByURL_Call) RunAndReturn(run func(model.URL) (model.Code, error)) *MockURLRepository_GetCodeByURL_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -119,6 +285,52 @@ func (_c *MockURLRepository_GetURLByCode_Call) Return(_a0 model.URL, _a1 error) 
 }
 
 func (_c *MockURLRepository_GetURLByCode_Call) RunAndReturn(run func(model.Code) (model.URL, error)) *MockURLRepository_GetURLByCode_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// IsCodeUnique provides a mock function with given fields: code
+func (_m *MockURLRepository) IsCodeUnique(code model.Code) bool {
+	ret := _m.Called(code)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IsCodeUnique")
+	}
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func(model.Code) bool); ok {
+		r0 = rf(code)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
+
+// MockURLRepository_IsCodeUnique_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsCodeUnique'
+type MockURLRepository_IsCodeUnique_Call struct {
+	*mock.Call
+}
+
+// IsCodeUnique is a helper method to define mock.On call
+//   - code model.Code
+func (_e *MockURLRepository_Expecter) IsCodeUnique(code interface{}) *MockURLRepository_IsCodeUnique_Call {
+	return &MockURLRepository_IsCodeUnique_Call{Call: _e.mock.On("IsCodeUnique", code)}
+}
+
+func (_c *MockURLRepository_IsCodeUnique_Call) Run(run func(code model.Code)) *MockURLRepository_IsCodeUnique_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(model.Code))
+	})
+	return _c
+}
+
+func (_c *MockURLRepository_IsCodeUnique_Call) Return(_a0 bool) *MockURLRepository_IsCodeUnique_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockURLRepository_IsCodeUnique_Call) RunAndReturn(run func(model.Code) bool) *MockURLRepository_IsCodeUnique_Call {
 	_c.Call.Return(run)
 	return _c
 }

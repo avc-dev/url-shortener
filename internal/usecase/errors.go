@@ -7,5 +7,20 @@ var (
 	ErrEmptyURL           = errors.New("empty URL")
 	ErrServiceUnavailable = errors.New("service unavailable")
 	ErrURLNotFound        = errors.New("URL not found")
+	ErrURLAlreadyExists   = errors.New("URL already exists")
 )
+
+// URLAlreadyExistsError представляет ошибку дублирования URL с существующим кодом
+type URLAlreadyExistsError struct {
+	Code string
+}
+
+func (e URLAlreadyExistsError) Error() string {
+	return "URL already exists"
+}
+
+func (e URLAlreadyExistsError) ExistingCode() string {
+	return e.Code
+}
+
 
