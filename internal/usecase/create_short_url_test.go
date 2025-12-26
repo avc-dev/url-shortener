@@ -60,7 +60,7 @@ func TestCreateShortURLFromString_Success(t *testing.T) {
 
 			mockService.EXPECT().
 				CreateShortURL(model.URL(tt.expectedURL), "test-user").
-				Return(model.Code(tt.generatedCode), nil).
+				Return(model.Code(tt.generatedCode), true, nil).
 				Once()
 
 			usecase := NewURLUsecase(mockRepo, mockService, cfg, zap.NewNop())
@@ -123,7 +123,7 @@ func TestCreateShortURLFromString_URLCleaning(t *testing.T) {
 
 			mockService.EXPECT().
 				CreateShortURL(model.URL(tt.expectedURL), "test-user").
-				Return(model.Code(tt.generatedCode), nil).
+				Return(model.Code(tt.generatedCode), true, nil).
 				Once()
 
 			usecase := NewURLUsecase(mockRepo, mockService, cfg, zap.NewNop())
@@ -260,7 +260,7 @@ func TestCreateShortURLFromString_ServiceError(t *testing.T) {
 
 			mockService.EXPECT().
 				CreateShortURL(model.URL("https://example.com"), "test-user").
-				Return(model.Code(""), tt.serviceError).
+				Return(model.Code(""), false, tt.serviceError).
 				Once()
 
 			usecase := NewURLUsecase(mockRepo, mockService, cfg, zap.NewNop())
@@ -287,7 +287,7 @@ func TestCreateShortURLFromString_LongURL(t *testing.T) {
 
 	mockService.EXPECT().
 		CreateShortURL(model.URL(longURL), "test-user").
-		Return(model.Code(generatedCode), nil).
+		Return(model.Code(generatedCode), true, nil).
 		Once()
 
 	usecase := NewURLUsecase(mockRepo, mockService, cfg, zap.NewNop())
@@ -333,7 +333,7 @@ func TestCreateShortURLFromString_SpecialCharacters(t *testing.T) {
 			generatedCode := "test1234"
 			mockService.EXPECT().
 				CreateShortURL(model.URL(tt.expectedURL), "test-user").
-				Return(model.Code(generatedCode), nil).
+				Return(model.Code(generatedCode), true, nil).
 				Once()
 
 			usecase := NewURLUsecase(mockRepo, mockService, cfg, zap.NewNop())

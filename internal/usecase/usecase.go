@@ -16,7 +16,7 @@ type URLRepository interface {
 
 // URLService определяет интерфейс для работы с сервисом генерации коротких URL
 type URLService interface {
-	CreateShortURL(originalURL model.URL, userID string) (model.Code, error)
+	CreateShortURL(originalURL model.URL, userID string) (model.Code, bool, error)
 	CreateShortURLsBatch(originalURLs []model.URL, userID string) ([]model.Code, error)
 }
 

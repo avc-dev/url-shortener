@@ -33,7 +33,7 @@ func (u *URLUsecase) CreateShortURLFromString(urlString string, userID string) (
 	}
 
 	originalURL := model.URL(urlString)
-	code, err := u.service.CreateShortURL(originalURL, userID)
+	code, created, err := u.service.CreateShortURL(originalURL, userID)
 	if err != nil {
 		u.logger.Error("failed to create short URL",
 			zap.String("original_url", string(originalURL)),
@@ -41,6 +41,20 @@ func (u *URLUsecase) CreateShortURLFromString(urlString string, userID string) (
 			zap.Error(err),
 		)
 		return "", fmt.Errorf("%w: %w", ErrServiceUnavailable, err)
+	}
+
+	if !created {
+		// URL уже существует для этого пользователя
+		shortURL, err := url.JoinPath(u.cfg.BaseURL.String(), string(code))
+		if err != nil {
+			u.logger.Error("failed to build short URL",
+				zap.String("base_url", u.cfg.BaseURL.String()),
+				zap.String("code", string(code)),
+				zap.Error(err),
+			)
+			return "", fmt.Errorf("%w: failed to build short URL: %w", ErrServiceUnavailable, err)
+		}
+		return "", URLAlreadyExistsError{Code: shortURL}
 	}
 
 	shortURL, err := url.JoinPath(u.cfg.BaseURL.String(), string(code))

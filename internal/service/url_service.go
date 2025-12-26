@@ -5,7 +5,6 @@ import (
 
 	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/model"
-	"github.com/avc-dev/url-shortener/internal/store"
 )
 
 // URLService содержит бизнес-логику для работы с короткими URL
@@ -27,24 +26,20 @@ func NewURLService(repo URLRepository, cfg *config.Config) *URLService {
 
 // CreateShortURL - основная бизнес-логика для создания короткого URL
 // Генерирует уникальный код и сохраняет его вместе с оригинальным URL и userID
-func (s *URLService) CreateShortURL(originalURL model.URL, userID string) (model.Code, error) {
+func (s *URLService) CreateShortURL(originalURL model.URL, userID string) (model.Code, bool, error) {
 	// Генерируем уникальный код
 	code, err := s.generateUniqueCode()
 	if err != nil {
-		return "", fmt.Errorf("failed to generate unique code: %w", err)
+		return "", false, fmt.Errorf("failed to generate unique code: %w", err)
 	}
 
 	// Создаем запись или получаем существующую для данного URL и пользователя
 	finalCode, created, err := s.repo.CreateOrGetURL(code, originalURL, userID)
 	if err != nil {
-		return "", fmt.Errorf("failed to create or get URL: %w", err)
+		return "", false, fmt.Errorf("failed to create or get URL: %w", err)
 	}
 
-	if !created {
-		return finalCode, fmt.Errorf("URL already exists for this user: %w", store.ErrURLAlreadyExists)
-	}
-
-	return finalCode, nil
+	return finalCode, created, nil
 }
 
 // generateUniqueCode генерирует уникальный код, проверяя его через IsCodeUnique
