@@ -22,13 +22,14 @@ func (h *Handler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+
 	// Если нет URL, возвращаем 204 No Content
 	if len(urls) == 0 {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(urls); err != nil {
