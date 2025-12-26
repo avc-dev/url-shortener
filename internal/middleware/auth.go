@@ -75,9 +75,37 @@ func (am *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 	})
 }
 
+// OptionalAuth возвращает миддлвар для опциональной аутентификации
+// Если куки нет - работает анонимно (не устанавливает userID)
+// Если кука есть и валидная - устанавливает userID в контекст
+// Если кука есть но невалидная - возвращает 401 Unauthorized
+func (am *AuthMiddleware) OptionalAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("user_token")
+		if err != nil || cookie.Value == "" {
+			// Куки нет - работаем анонимно, userID останется пустым
+			am.logger.Debug("no auth cookie found, proceeding anonymously")
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		userID, err := am.authService.ValidateJWT(cookie.Value)
+		if err != nil {
+			am.logger.Debug("invalid auth token", zap.Error(err))
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Куки валидная - добавляем user_id в контекст
+		ctx := context.WithValue(r.Context(), UserIDContextKey, userID)
+		r = r.WithContext(ctx)
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 // GetUserIDFromContext извлекает user_id из контекста запроса
 func GetUserIDFromContext(ctx context.Context) (string, bool) {
 	userID, ok := ctx.Value(UserIDContextKey).(string)
 	return userID, ok
 }
-

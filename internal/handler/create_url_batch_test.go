@@ -37,7 +37,7 @@ func TestCreateURLBatch(t *testing.T) {
 				{CorrelationID: "2", OriginalURL: "https://google.com"},
 			},
 			mockSetup: func() {
-				mockUsecase.EXPECT().CreateShortURLsBatch([]string{"https://example.com", "https://google.com"}, "test-user").
+				mockUsecase.EXPECT().CreateShortURLsBatch([]string{"https://example.com", "https://google.com"}, "").
 					Return([]string{"http://localhost:8080/abc123", "http://localhost:8080/def456"}, nil)
 			},
 			expectedStatus: http.StatusCreated,

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -65,10 +66,37 @@ func (h *Handler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, usecase.ErrURLNotFound):
 		h.logger.Debug("URL not found", zap.Error(err))
 		w.WriteHeader(http.StatusNotFound)
+	case errors.Is(err, usecase.ErrURLAlreadyExists):
+		h.logger.Debug("URL already exists", zap.Error(err))
+		w.WriteHeader(http.StatusConflict)
 	default:
+		var urlExistsErr usecase.URLAlreadyExistsError
+		if errors.As(err, &urlExistsErr) {
+			h.logger.Debug("URL already exists", zap.Error(err))
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
 		h.logger.Error("internal server error", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 	}
+}
+
+// handleErrorJSON обрабатывает ошибки для JSON API endpoints
+func (h *Handler) handleErrorJSON(w http.ResponseWriter, err error) {
+	var urlExistsErr usecase.URLAlreadyExistsError
+	if errors.As(err, &urlExistsErr) {
+		// Для JSON API при дублировании URL возвращаем существующий код
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		response := map[string]string{"result": urlExistsErr.ExistingCode()}
+		if jsonErr := json.NewEncoder(w).Encode(response); jsonErr != nil {
+			h.logger.Error("failed to encode JSON response", zap.Error(jsonErr))
+		}
+		return
+	}
+
+	// Для остальных ошибок используем обычную обработку
+	h.handleError(w, err)
 }
 
 // getUserIDFromRequest извлекает user_id из контекста запроса

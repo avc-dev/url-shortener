@@ -9,12 +9,8 @@ import (
 
 // CreateURL обрабатывает POST запрос для создания короткого URL (plain text формат)
 func (h *Handler) CreateURL(w http.ResponseWriter, req *http.Request) {
-	userID, ok := h.getUserIDFromRequest(req)
-	if !ok {
-		h.logger.Debug("user ID not found in context")
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+	userID, _ := h.getUserIDFromRequest(req)
+	// userID может быть пустым для анонимных пользователей
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {

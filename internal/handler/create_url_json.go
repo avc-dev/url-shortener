@@ -17,12 +17,8 @@ type ShortenResponse struct {
 
 // CreateURLJSON обрабатывает POST запрос для создания короткого URL (JSON формат)
 func (h *Handler) CreateURLJSON(w http.ResponseWriter, req *http.Request) {
-	userID, ok := h.getUserIDFromRequest(req)
-	if !ok {
-		h.logger.Debug("user ID not found in context")
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+	userID, _ := h.getUserIDFromRequest(req)
+	// userID может быть пустым для анонимных пользователей
 
 	var request ShortenRequest
 	if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
@@ -36,7 +32,7 @@ func (h *Handler) CreateURLJSON(w http.ResponseWriter, req *http.Request) {
 
 	shortURL, err := h.usecase.CreateShortURLFromString(request.URL, userID)
 	if err != nil {
-		h.handleError(w, err)
+		h.handleErrorJSON(w, err)
 		return
 	}
 

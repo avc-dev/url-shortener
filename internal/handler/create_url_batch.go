@@ -10,12 +10,8 @@ import (
 
 // CreateURLBatch обрабатывает POST запрос для создания нескольких коротких URL (batch формат)
 func (h *Handler) CreateURLBatch(w http.ResponseWriter, req *http.Request) {
-	userID, ok := h.getUserIDFromRequest(req)
-	if !ok {
-		h.logger.Debug("user ID not found in context")
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+	userID, _ := h.getUserIDFromRequest(req)
+	// userID может быть пустым для анонимных пользователей
 
 	var requests []model.BatchShortenRequest
 	if err := json.NewDecoder(req.Body).Decode(&requests); err != nil {

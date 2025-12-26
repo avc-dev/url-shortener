@@ -25,10 +25,10 @@ func newRouter(h *handler.Handler, logger *zap.Logger, cfg *config.Config) *chi.
 	r.Get("/ping", h.Ping)
 	r.Get("/{id}", h.GetURL)
 
-	// Authenticated routes - все маршруты создания URL требуют аутентификации
-	r.With(authMiddleware.Authenticate).Post("/", h.CreateURL)
-	r.With(authMiddleware.Authenticate).Post("/api/shorten", h.CreateURLJSON)
-	r.With(authMiddleware.Authenticate).Post("/api/shorten/batch", h.CreateURLBatch)
+	// Authenticated routes - маршруты создания URL с опциональной аутентификацией
+	r.With(authMiddleware.OptionalAuth).Post("/", h.CreateURL)
+	r.With(authMiddleware.OptionalAuth).Post("/api/shorten", h.CreateURLJSON)
+	r.With(authMiddleware.OptionalAuth).Post("/api/shorten/batch", h.CreateURLBatch)
 
 	// User URLs route - требует строгой аутентификации
 	r.With(authMiddleware.RequireAuth).Get("/api/user/urls", h.GetUserURLs)
