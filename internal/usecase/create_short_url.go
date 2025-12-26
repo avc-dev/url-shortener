@@ -44,7 +44,7 @@ func (u *URLUsecase) CreateShortURLFromString(urlString string, userID string) (
 	}
 
 	if !created {
-		// URL уже существует для этого пользователя
+		// URL уже существует для этого пользователя - возвращаем ошибку конфликта
 		shortURL, err := url.JoinPath(u.cfg.BaseURL.String(), string(code))
 		if err != nil {
 			u.logger.Error("failed to build short URL",

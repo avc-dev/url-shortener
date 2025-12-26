@@ -66,14 +66,12 @@ func (h *Handler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, usecase.ErrURLNotFound):
 		h.logger.Debug("URL not found", zap.Error(err))
 		w.WriteHeader(http.StatusNotFound)
-	case errors.Is(err, usecase.ErrURLAlreadyExists):
-		h.logger.Debug("URL already exists", zap.Error(err))
-		w.WriteHeader(http.StatusConflict)
 	default:
 		var urlExistsErr usecase.URLAlreadyExistsError
 		if errors.As(err, &urlExistsErr) {
-			h.logger.Debug("URL already exists", zap.Error(err))
+			// При конфликте URL возвращаем существующий код в теле ответа
 			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(urlExistsErr.ExistingCode()))
 			return
 		}
 		h.logger.Error("internal server error", zap.Error(err))
@@ -85,7 +83,7 @@ func (h *Handler) handleError(w http.ResponseWriter, err error) {
 func (h *Handler) handleErrorJSON(w http.ResponseWriter, err error) {
 	var urlExistsErr usecase.URLAlreadyExistsError
 	if errors.As(err, &urlExistsErr) {
-		// Для JSON API при дублировании URL возвращаем существующий код
+		// Для JSON API при конфликте URL возвращаем существующий код
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
 		response := map[string]string{"result": urlExistsErr.ExistingCode()}
