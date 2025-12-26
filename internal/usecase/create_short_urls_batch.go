@@ -11,7 +11,7 @@ import (
 
 // CreateShortURLsBatch создает короткие URL для нескольких строковых URL
 // Выполняет валидацию, очистку URL и генерацию коротких кодов для каждого
-func (u *URLUsecase) CreateShortURLsBatch(urlStrings []string) ([]string, error) {
+func (u *URLUsecase) CreateShortURLsBatch(urlStrings []string, userID string) ([]string, error) {
 	originalURLs := make([]model.URL, len(urlStrings))
 
 	// Валидируем и очищаем все URL
@@ -40,10 +40,11 @@ func (u *URLUsecase) CreateShortURLsBatch(urlStrings []string) ([]string, error)
 	}
 
 	// Создаем короткие URL через сервис
-	codes, err := u.service.CreateShortURLsBatch(originalURLs)
+	codes, err := u.service.CreateShortURLsBatch(originalURLs, userID)
 	if err != nil {
 		u.logger.Error("failed to create short URLs batch",
 			zap.Strings("original_urls", urlStrings),
+			zap.String("user_id", userID),
 			zap.Error(err),
 		)
 		return nil, fmt.Errorf("%w: %w", ErrServiceUnavailable, err)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"sync"
 
 	"github.com/avc-dev/url-shortener/internal/model"
@@ -20,14 +21,16 @@ var (
 type URLMap = map[model.Code]model.URL
 
 type Store struct {
-	store URLMap
-	mutex sync.Mutex
+	store   URLMap
+	userMap map[model.Code]string // code -> userID mapping
+	mutex   sync.Mutex
 }
 
 func NewStore() *Store {
 	return &Store{
-		store: make(URLMap),
-		mutex: sync.Mutex{},
+		store:   make(URLMap),
+		userMap: make(map[model.Code]string),
+		mutex:   sync.Mutex{},
 	}
 }
 
@@ -44,7 +47,7 @@ func (s *Store) Read(key model.Code) (model.URL, error) {
 	return value, nil
 }
 
-func (s *Store) Write(key model.Code, value model.URL) error {
+func (s *Store) Write(key model.Code, value model.URL, userID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -54,21 +57,23 @@ func (s *Store) Write(key model.Code, value model.URL) error {
 	}
 
 	s.store[key] = value
+	s.userMap[key] = userID
 
 	return nil
 }
 
 // InitializeWith инициализирует хранилище данными (без проверки на существование)
 // Используется для массовой загрузки данных, например, из файла
-func (s *Store) InitializeWith(data URLMap) {
+func (s *Store) InitializeWith(data URLMap, userData map[model.Code]string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	maps.Copy(s.store, data)
+	maps.Copy(s.userMap, userData)
 }
 
 // WriteBatch сохраняет несколько пар код-URL в хранилище атомарно
-func (s *Store) WriteBatch(urls URLMap) error {
+func (s *Store) WriteBatch(urls URLMap, userID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -82,19 +87,22 @@ func (s *Store) WriteBatch(urls URLMap) error {
 	// Вставляем все записи
 	for code, url := range urls {
 		s.store[code] = url
+		s.userMap[code] = userID
 	}
 
 	return nil
 }
 
 // CreateOrGetURL создает новую запись или возвращает код существующей для данного URL
-func (s *Store) CreateOrGetURL(code model.Code, url model.URL) (model.Code, bool, error) {
+func (s *Store) CreateOrGetURL(code model.Code, url model.URL, userID string) (model.Code, bool, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	// Проверяем, существует ли уже такой URL
 	for existingCode, existingURL := range s.store {
 		if existingURL == url {
+			// Обновляем userID для существующего кода
+			s.userMap[existingCode] = userID
 			return existingCode, false, nil // false = не создана новая запись
 		}
 	}
@@ -106,6 +114,7 @@ func (s *Store) CreateOrGetURL(code model.Code, url model.URL) (model.Code, bool
 
 	// Создаем новую запись
 	s.store[code] = url
+	s.userMap[code] = userID
 	return code, true, nil // true = создана новая запись
 }
 
@@ -130,4 +139,35 @@ func (s *Store) GetCodeByURL(url model.URL) (model.Code, error) {
 	}
 
 	return "", fmt.Errorf("URL not found: %w", ErrNotFound)
+}
+
+// GetURLsByUserID возвращает URL пользователя (не поддерживается в memory store)
+func (s *Store) GetURLsByUserID(userID string, baseURL string) ([]model.UserURLResponse, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	var urls []model.UserURLResponse
+
+	for code, storedUserID := range s.userMap {
+		if storedUserID == userID {
+			// Получаем оригинальный URL
+			originalURL, exists := s.store[code]
+			if !exists {
+				continue // Несогласованность данных, пропускаем
+			}
+
+			// Формируем полный короткий URL
+			shortURL, err := url.JoinPath(baseURL, string(code))
+			if err != nil {
+				continue // Пропускаем если не удалось сформировать URL
+			}
+
+			urls = append(urls, model.UserURLResponse{
+				ShortURL:    shortURL,
+				OriginalURL: string(originalURL),
+			})
+		}
+	}
+
+	return urls, nil
 }

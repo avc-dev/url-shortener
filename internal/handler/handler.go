@@ -5,30 +5,36 @@ import (
 	"net/http"
 
 	"github.com/avc-dev/url-shortener/internal/config/db"
+	"github.com/avc-dev/url-shortener/internal/middleware"
+	"github.com/avc-dev/url-shortener/internal/model"
+	"github.com/avc-dev/url-shortener/internal/service"
 	"github.com/avc-dev/url-shortener/internal/usecase"
 	"go.uber.org/zap"
 )
 
 // URLUsecase определяет интерфейс для бизнес-логики работы с URL
 type URLUsecase interface {
-	CreateShortURLFromString(urlString string) (string, error)
-	CreateShortURLsBatch(urlStrings []string) ([]string, error)
+	CreateShortURLFromString(urlString string, userID string) (string, error)
+	CreateShortURLsBatch(urlStrings []string, userID string) ([]string, error)
 	GetOriginalURL(code string) (string, error)
+	GetURLsByUserID(userID string) ([]model.UserURLResponse, error)
 }
 
 // Handler обрабатывает HTTP запросы
 type Handler struct {
-	usecase URLUsecase
-	logger  *zap.Logger
-	dbPool  db.Database
+	usecase     URLUsecase
+	logger      *zap.Logger
+	dbPool      db.Database
+	authService *service.AuthService
 }
 
 // New создает новый экземпляр Handler
-func New(usecase URLUsecase, logger *zap.Logger, dbPool db.Database) *Handler {
+func New(usecase URLUsecase, logger *zap.Logger, dbPool db.Database, authService *service.AuthService) *Handler {
 	return &Handler{
-		usecase: usecase,
-		logger:  logger,
-		dbPool:  dbPool,
+		usecase:     usecase,
+		logger:      logger,
+		dbPool:      dbPool,
+		authService: authService,
 	}
 }
 
@@ -63,4 +69,9 @@ func (h *Handler) handleError(w http.ResponseWriter, err error) {
 		h.logger.Error("internal server error", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 	}
+}
+
+// getUserIDFromRequest извлекает user_id из контекста запроса
+func (h *Handler) getUserIDFromRequest(r *http.Request) (string, bool) {
+	return middleware.GetUserIDFromContext(r.Context())
 }

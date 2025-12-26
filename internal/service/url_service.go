@@ -26,24 +26,22 @@ func NewURLService(repo URLRepository, cfg *config.Config) *URLService {
 }
 
 // CreateShortURL - основная бизнес-логика для создания короткого URL
-// Генерирует уникальный код и сохраняет его вместе с оригинальным URL
-// Если URL уже существует, возвращает ошибку с существующим кодом
-func (s *URLService) CreateShortURL(originalURL model.URL) (model.Code, error) {
+// Генерирует уникальный код и сохраняет его вместе с оригинальным URL и userID
+func (s *URLService) CreateShortURL(originalURL model.URL, userID string) (model.Code, error) {
 	// Генерируем уникальный код
 	code, err := s.generateUniqueCode()
 	if err != nil {
 		return "", fmt.Errorf("failed to generate unique code: %w", err)
 	}
 
-	// Создаем запись или получаем существующую для данного URL
-	finalCode, created, err := s.repo.CreateOrGetURL(code, originalURL)
+	// Создаем запись или получаем существующую для данного URL и пользователя
+	finalCode, created, err := s.repo.CreateOrGetURL(code, originalURL, userID)
 	if err != nil {
 		return "", fmt.Errorf("failed to create or get URL: %w", err)
 	}
 
-	// Если URL уже существовал, возвращаем ошибку
 	if !created {
-		return finalCode, fmt.Errorf("URL already exists: %w", store.ErrURLAlreadyExists)
+		return finalCode, fmt.Errorf("URL already exists for this user: %w", store.ErrURLAlreadyExists)
 	}
 
 	return finalCode, nil
@@ -82,7 +80,7 @@ func (s *URLService) generateUniqueCodeForBatch(usedInBatch map[model.Code]bool)
 
 // CreateShortURLsBatch создает короткие URL для нескольких оригинальных URL
 // Генерирует уникальные коды для каждого URL и сохраняет их в одной транзакции
-func (s *URLService) CreateShortURLsBatch(originalURLs []model.URL) ([]model.Code, error) {
+func (s *URLService) CreateShortURLsBatch(originalURLs []model.URL, userID string) ([]model.Code, error) {
 	urlMap := make(map[model.Code]model.URL)
 	usedCodes := make(map[model.Code]bool)
 
@@ -97,7 +95,7 @@ func (s *URLService) CreateShortURLsBatch(originalURLs []model.URL) ([]model.Cod
 	}
 
 	// Сохраняем все URL в одной транзакции
-	err := s.repo.CreateURLsBatch(urlMap)
+	err := s.repo.CreateURLsBatch(urlMap, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create URLs batch: %w", err)
 	}

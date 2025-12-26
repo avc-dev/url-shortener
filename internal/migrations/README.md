@@ -20,7 +20,7 @@
 
 ## Добавление новых миграций
 
-1. Создайте пару файлов в `migrations/schema/`:
+1. Создайте пару файлов в `internal/migrations/schema/`:
    - `{version}_{name}.up.sql` - для применения миграции
    - `{version}_{name}.down.sql` - для отката миграции
 
