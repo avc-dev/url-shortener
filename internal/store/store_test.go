@@ -65,7 +65,7 @@ func TestStore_Write_Success(t *testing.T) {
 			store := NewStore()
 
 			// Act
-			err := store.Write(tt.code, tt.url)
+			err := store.Write(tt.code, tt.url, "test-user")
 
 			// Assert
 			require.NoError(t, err)
@@ -87,11 +87,11 @@ func TestStore_Write_Duplicate(t *testing.T) {
 	url2 := model.URL("https://example.com/second")
 
 	// Первая запись - успешна
-	err := store.Write(code, url1)
+	err := store.Write(code, url1, "test-user")
 	require.NoError(t, err)
 
 	// Act - попытка записать тот же ключ
-	err = store.Write(code, url2)
+	err = store.Write(code, url2, "test-user")
 
 	// Assert
 	require.Error(t, err)
@@ -192,7 +192,7 @@ func TestStore_WriteRead_Integration(t *testing.T) {
 
 	// Act - записываем все данные
 	for code, url := range testData {
-		err := store.Write(code, url)
+		err := store.Write(code, url, "test-user")
 		require.NoError(t, err, "Failed to write code %s", code)
 	}
 
@@ -215,7 +215,7 @@ func TestStore_MultipleWrites(t *testing.T) {
 		code := model.Code(string(rune('a'+i%26)) + string(rune('0'+i%10)))
 		url := model.URL("https://example.com/" + string(rune('0'+i)))
 
-		_ = store.Write(code, url)
+		_ = store.Write(code, url, "test-user")
 	}
 
 	// Assert - проверяем что записаны данные
@@ -276,7 +276,7 @@ func TestStore_ConcurrentWrites(t *testing.T) {
 			code := model.Code("code" + string(rune('0'+index)))
 			url := model.URL("https://example.com/" + string(rune('0'+index)))
 
-			err := store.Write(code, url)
+			err := store.Write(code, url, "test-user")
 			if err != nil {
 				errors <- err
 			}
@@ -327,7 +327,7 @@ func TestStore_ConcurrentReadWrite(t *testing.T) {
 			defer wg.Done()
 			code := model.Code("new" + string(rune('0'+index)))
 			url := model.URL("https://example.com/new/" + string(rune('0'+index)))
-			_ = store.Write(code, url)
+			_ = store.Write(code, url, "test-user")
 		}(i)
 	}
 
@@ -351,15 +351,15 @@ func TestStore_WriteSameKeyMultipleTimes(t *testing.T) {
 
 	// Act & Assert
 	// Первая запись - успешна
-	err := store.Write(code, url1)
+	err := store.Write(code, url1, "test-user")
 	require.NoError(t, err)
 
 	// Вторая запись - ошибка
-	err = store.Write(code, url2)
+	err = store.Write(code, url2, "test-user")
 	require.Error(t, err)
 
 	// Третья запись - ошибка
-	err = store.Write(code, url3)
+	err = store.Write(code, url3, "test-user")
 	require.Error(t, err)
 
 	// Проверяем что хранится оригинальное значение
@@ -401,7 +401,7 @@ func TestStore_EmptyValues(t *testing.T) {
 			store := NewStore()
 
 			// Act
-			err := store.Write(tt.code, tt.url)
+			err := store.Write(tt.code, tt.url, "test-user")
 
 			// Assert
 			if tt.expectError {
@@ -428,7 +428,7 @@ func TestStore_LargeDataset(t *testing.T) {
 	for i := 0; i < numItems; i++ {
 		code := model.Code("code" + string(rune('a'+(i%26))) + string(rune('0'+(i%10))))
 		url := model.URL("https://example.com/path/" + string(rune('0'+(i%10))))
-		_ = store.Write(code, url)
+		_ = store.Write(code, url, "test-user")
 	}
 
 	// Assert - проверяем что данные записались
@@ -458,8 +458,8 @@ func TestStore_ErrorMessages(t *testing.T) {
 		code := model.Code("duplicate")
 		url := model.URL("https://example.com")
 
-		_ = store.Write(code, url)
-		err := store.Write(code, url)
+		_ = store.Write(code, url, "test-user")
+		err := store.Write(code, url, "test-user")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), string(code))
@@ -478,8 +478,8 @@ func TestStore_StoreIsolation(t *testing.T) {
 	url2 := model.URL("https://example.com/store2")
 
 	// Act
-	err1 := store1.Write(code, url1)
-	err2 := store2.Write(code, url2)
+	err1 := store1.Write(code, url1, "test-user")
+	err2 := store2.Write(code, url2, "test-user")
 
 	// Assert
 	require.NoError(t, err1)

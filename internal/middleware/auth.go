@@ -8,6 +8,14 @@ import (
 	"go.uber.org/zap"
 )
 
+// UserIDKey is the key used to store user ID in context
+type UserIDKey string
+
+const (
+	// UserIDContextKey is the context key for user ID
+	UserIDContextKey UserIDKey = "user_id"
+)
+
 // AuthMiddleware представляет миддлвар для аутентификации пользователей
 type AuthMiddleware struct {
 	authService *service.AuthService
@@ -34,7 +42,7 @@ func (am *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 		}
 
 		// Добавляем user_id в контекст
-		ctx := context.WithValue(r.Context(), "user_id", userID)
+		ctx := context.WithValue(r.Context(), UserIDContextKey, userID)
 		r = r.WithContext(ctx)
 
 		next.ServeHTTP(w, r)
@@ -60,7 +68,7 @@ func (am *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 		}
 
 		// Добавляем user_id в контекст
-		ctx := context.WithValue(r.Context(), "user_id", userID)
+		ctx := context.WithValue(r.Context(), UserIDContextKey, userID)
 		r = r.WithContext(ctx)
 
 		next.ServeHTTP(w, r)
@@ -69,7 +77,7 @@ func (am *AuthMiddleware) RequireAuth(next http.Handler) http.Handler {
 
 // GetUserIDFromContext извлекает user_id из контекста запроса
 func GetUserIDFromContext(ctx context.Context) (string, bool) {
-	userID, ok := ctx.Value("user_id").(string)
+	userID, ok := ctx.Value(UserIDContextKey).(string)
 	return userID, ok
 }
 

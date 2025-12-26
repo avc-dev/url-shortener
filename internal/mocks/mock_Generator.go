@@ -30,10 +30,7 @@ func (_m *MockGenerator) GenerateBatchCodes(count int) []model.Code {
 
 	var r0 []model.Code
 	if rf, ok := ret.Get(0).(func(int) []model.Code); ok {
-		return rf(count)
-	}
-	if rf, ok := ret.Get(0).(func(int) model.Code); ok {
-		r0 = []model.Code{rf(count)}
+		r0 = rf(count)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]model.Code)
@@ -71,7 +68,7 @@ func (_c *MockGenerator_GenerateBatchCodes_Call) RunAndReturn(run func(int) []mo
 	return _c
 }
 
-// GenerateCode provides a mock function with given fields:
+// GenerateCode provides a mock function with no fields
 func (_m *MockGenerator) GenerateCode() model.Code {
 	ret := _m.Called()
 
@@ -81,14 +78,9 @@ func (_m *MockGenerator) GenerateCode() model.Code {
 
 	var r0 model.Code
 	if rf, ok := ret.Get(0).(func() model.Code); ok {
-		return rf()
-	}
-	if rf, ok := ret.Get(0).(func() model.Code); ok {
 		r0 = rf()
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(model.Code)
-		}
+		r0 = ret.Get(0).(model.Code)
 	}
 
 	return r0

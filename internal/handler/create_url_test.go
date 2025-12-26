@@ -22,11 +22,11 @@ func TestCreateURL_Success(t *testing.T) {
 	expectedShortURL := "http://localhost:8080/testcode"
 
 	mockUsecase.EXPECT().
-		CreateShortURLFromString("https://example.com").
+		CreateShortURLFromString("https://example.com", "test-user").
 		Return(expectedShortURL, nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil)
+	handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 	body := bytes.NewBufferString("https://example.com")
 	req := httptest.NewRequest(http.MethodPost, "/", body)
@@ -54,11 +54,11 @@ func TestCreateURL_EmptyBody(t *testing.T) {
 
 	// Usecase получит пустую строку и вернет ошибку валидации
 	mockUsecase.EXPECT().
-		CreateShortURLFromString("").
+		CreateShortURLFromString("", "test-user").
 		Return("", usecase.ErrEmptyURL).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil)
+	handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(""))
 	w := httptest.NewRecorder()
@@ -78,7 +78,7 @@ func TestCreateURL_EmptyBody(t *testing.T) {
 func TestCreateURL_ReadBodyError(t *testing.T) {
 	// Arrange
 	mockUsecase := mocks.NewMockURLUsecase(t)
-	handler := New(mockUsecase, zap.NewNop(), nil)
+	handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 	// Создаем reader который всегда возвращает ошибку
 	errorReader := &errorReader{err: errors.New("read error")}
@@ -133,11 +133,11 @@ func TestCreateURL_ErrorMapping(t *testing.T) {
 			mockUsecase := mocks.NewMockURLUsecase(t)
 
 			mockUsecase.EXPECT().
-				CreateShortURLFromString("https://example.com").
+				CreateShortURLFromString("https://example.com", "test-user").
 				Return("", tt.usecaseError).
 				Once()
 
-			handler := New(mockUsecase, zap.NewNop(), nil)
+			handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 			body := bytes.NewBufferString("https://example.com")
 			req := httptest.NewRequest(http.MethodPost, "/", body)
@@ -161,11 +161,11 @@ func TestCreateURL_ContentType(t *testing.T) {
 	mockUsecase := mocks.NewMockURLUsecase(t)
 
 	mockUsecase.EXPECT().
-		CreateShortURLFromString("https://example.com").
+		CreateShortURLFromString("https://example.com", "test-user").
 		Return("http://localhost:8080/testcode", nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil)
+	handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 	body := bytes.NewBufferString("https://example.com")
 	req := httptest.NewRequest(http.MethodPost, "/", body)
@@ -189,11 +189,11 @@ func TestCreateURL_ResponseBody(t *testing.T) {
 	expectedShortURL := "http://localhost:8080/abc12345"
 
 	mockUsecase.EXPECT().
-		CreateShortURLFromString("https://practicum.yandex.ru").
+		CreateShortURLFromString("https://practicum.yandex.ru", "test-user").
 		Return(expectedShortURL, nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil)
+	handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 	body := bytes.NewBufferString("https://practicum.yandex.ru")
 	req := httptest.NewRequest(http.MethodPost, "/", body)
@@ -240,11 +240,11 @@ func TestCreateURL_PassesBodyAsIs(t *testing.T) {
 
 			// Проверяем что usecase получает URL как есть, без обработки
 			mockUsecase.EXPECT().
-				CreateShortURLFromString(tt.inputURL).
+				CreateShortURLFromString(tt.inputURL, "test-user").
 				Return("http://localhost:8080/testcode", nil).
 				Once()
 
-			handler := New(mockUsecase, zap.NewNop(), nil)
+			handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 			body := bytes.NewBufferString(tt.inputURL)
 			req := httptest.NewRequest(http.MethodPost, "/", body)

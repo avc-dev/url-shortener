@@ -9,6 +9,7 @@ import (
 
 	"github.com/avc-dev/url-shortener/internal/mocks"
 	"github.com/avc-dev/url-shortener/internal/model"
+	"github.com/avc-dev/url-shortener/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -17,8 +18,10 @@ import (
 func TestCreateURLBatch(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	mockUsecase := &mocks.MockURLUsecase{}
+	mockDB := &mocks.MockDatabase{}
+	mockAuthService := &service.AuthService{} // Using nil for auth service as it's not tested here
 
-	handler := New(mockUsecase, logger, nil)
+	handler := New(mockUsecase, logger, mockDB, mockAuthService)
 
 	tests := []struct {
 		name           string
@@ -34,7 +37,7 @@ func TestCreateURLBatch(t *testing.T) {
 				{CorrelationID: "2", OriginalURL: "https://google.com"},
 			},
 			mockSetup: func() {
-				mockUsecase.EXPECT().CreateShortURLsBatch([]string{"https://example.com", "https://google.com"}).
+				mockUsecase.EXPECT().CreateShortURLsBatch([]string{"https://example.com", "https://google.com"}, "test-user").
 					Return([]string{"http://localhost:8080/abc123", "http://localhost:8080/def456"}, nil)
 			},
 			expectedStatus: http.StatusCreated,

@@ -33,7 +33,7 @@ func TestCreateShortURL_Success(t *testing.T) {
 
 	// Создание или получение URL - создается новая запись
 	mockRepo.EXPECT().
-		CreateOrGetURL(expectedCode, model.URL("https://example.com")).
+		CreateOrGetURL(expectedCode, model.URL("https://example.com"), "test-user").
 		Return(expectedCode, true, nil). // true = создана новая запись
 		Once()
 
@@ -46,7 +46,7 @@ func TestCreateShortURL_Success(t *testing.T) {
 	originalURL := model.URL("https://example.com")
 
 	// Act
-	code, err := service.CreateShortURL(originalURL)
+	code, err := service.CreateShortURL(originalURL, "test-user")
 
 	// Assert
 	require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestCreateShortURL_URLAlreadyExists(t *testing.T) {
 
 	// URL уже существует - возвращается существующий код
 	mockRepo.EXPECT().
-		CreateOrGetURL(newCode, model.URL("https://example.com")).
+		CreateOrGetURL(newCode, model.URL("https://example.com"), "test-user").
 		Return(existingCode, false, nil). // false = запись уже существовала
 		Once()
 
@@ -88,7 +88,7 @@ func TestCreateShortURL_URLAlreadyExists(t *testing.T) {
 	originalURL := model.URL("https://example.com")
 
 	// Act
-	code, err := service.CreateShortURL(originalURL)
+	code, err := service.CreateShortURL(originalURL, "test-user")
 
 	// Assert
 	require.Error(t, err)

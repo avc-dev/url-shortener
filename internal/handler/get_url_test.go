@@ -68,7 +68,7 @@ func TestGetURL_Success(t *testing.T) {
 				Return(tt.expectedURL, nil).
 				Once()
 
-			handler := New(mockUsecase, zap.NewNop(), nil)
+			handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.code, nil)
 			// Add chi context with URL parameter
@@ -123,7 +123,7 @@ func TestGetURL_NotFound(t *testing.T) {
 				Return("", usecase.ErrURLNotFound).
 				Once()
 
-			handler := New(mockUsecase, zap.NewNop(), nil)
+			handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.code, nil)
 			// Add chi context with URL parameter
@@ -154,7 +154,7 @@ func TestGetURL_EmptyCode(t *testing.T) {
 		Return("", usecase.ErrURLNotFound).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil)
+	handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	// Add chi context with empty URL parameter
@@ -216,7 +216,7 @@ func TestGetURL_CodeExtraction(t *testing.T) {
 				Return("https://example.com", nil).
 				Once()
 
-			handler := New(mockUsecase, zap.NewNop(), nil)
+			handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 			req := httptest.NewRequest(http.MethodGet, tt.requestPath, nil)
 			// Add chi context with URL parameter
@@ -307,7 +307,7 @@ func TestGetURL_BoundaryConditions(t *testing.T) {
 					Once()
 			}
 
-			handler := New(mockUsecase, zap.NewNop(), nil)
+			handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.code, nil)
 			// Add chi context with URL parameter
@@ -341,7 +341,7 @@ func TestGetURL_UnicodeURL(t *testing.T) {
 		Return("https://example.com/путь", nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil)
+	handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/abc12345", nil)
 	// Add chi context with URL parameter
@@ -383,7 +383,7 @@ func TestGetURL_RedirectStatusCode(t *testing.T) {
 		Return("https://example.com", nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil)
+	handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/abc12345", nil)
 	// Add chi context with URL parameter
@@ -415,7 +415,7 @@ func TestGetURL_UsecaseInteraction(t *testing.T) {
 		Return("https://example.com", nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil)
+	handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/"+expectedCode, nil)
 	// Add chi context with URL parameter
@@ -441,7 +441,7 @@ func TestGetURL_ConcurrentRequests(t *testing.T) {
 			Once()
 	}
 
-	handler := New(mockUsecase, zap.NewNop(), nil)
+	handler := New(mockUsecase, zap.NewNop(), nil, nil)
 
 	// Act & Assert - запускаем несколько параллельных запросов
 	done := make(chan bool)
