@@ -289,26 +289,31 @@ func (ds *DatabaseStore) DeleteURLsBatch(codes []model.Code, userID string) erro
 	}
 
 	ctx := context.Background()
-	return ds.batchUpdateDeletedFlag(ctx, codes, true)
+	return ds.batchUpdateDeletedFlag(ctx, codes, userID, true)
 }
 
 // batchUpdateDeletedFlag выполняет batch update флага is_deleted
-func (ds *DatabaseStore) batchUpdateDeletedFlag(ctx context.Context, codes []model.Code, isDeleted bool) error {
+func (ds *DatabaseStore) batchUpdateDeletedFlag(ctx context.Context, codes []model.Code, userID string, isDeleted bool) error {
+	if len(codes) == 0 {
+		return nil
+	}
+
 	// Создаем placeholders для IN запроса
 	placeholders := make([]string, len(codes))
-	args := make([]interface{}, len(codes)+1)
+	args := make([]interface{}, len(codes)+2)
 
 	for i, code := range codes {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
 		args[i] = string(code)
 	}
-	args[len(codes)] = isDeleted
+	args[len(codes)] = userID
+	args[len(codes)+1] = isDeleted
 
 	query := fmt.Sprintf(`
 		UPDATE urls
 		SET is_deleted = $%d
-		WHERE code IN (%s)
-	`, len(codes)+1, fmt.Sprintf("(%s)", strings.Join(placeholders, ",")))
+		WHERE code IN (%s) AND user_id = $%d
+	`, len(codes)+2, strings.Join(placeholders, ","), len(codes)+1)
 
 	_, err := ds.pool.Exec(ctx, query, args...)
 	return err
