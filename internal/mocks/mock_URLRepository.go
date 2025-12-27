@@ -340,6 +340,53 @@ func (_c *MockURLRepository_IsCodeUnique_Call) RunAndReturn(run func(model.Code)
 	return _c
 }
 
+// IsURLOwnedByUser provides a mock function with given fields: code, userID
+func (_m *MockURLRepository) IsURLOwnedByUser(code model.Code, userID string) bool {
+	ret := _m.Called(code, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for IsURLOwnedByUser")
+	}
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func(model.Code, string) bool); ok {
+		r0 = rf(code, userID)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
+
+// MockURLRepository_IsURLOwnedByUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsURLOwnedByUser'
+type MockURLRepository_IsURLOwnedByUser_Call struct {
+	*mock.Call
+}
+
+// IsURLOwnedByUser is a helper method to define mock.On call
+//   - code model.Code
+//   - userID string
+func (_e *MockURLRepository_Expecter) IsURLOwnedByUser(code interface{}, userID interface{}) *MockURLRepository_IsURLOwnedByUser_Call {
+	return &MockURLRepository_IsURLOwnedByUser_Call{Call: _e.mock.On("IsURLOwnedByUser", code, userID)}
+}
+
+func (_c *MockURLRepository_IsURLOwnedByUser_Call) Run(run func(code model.Code, userID string)) *MockURLRepository_IsURLOwnedByUser_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(model.Code), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockURLRepository_IsURLOwnedByUser_Call) Return(_a0 bool) *MockURLRepository_IsURLOwnedByUser_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockURLRepository_IsURLOwnedByUser_Call) RunAndReturn(run func(model.Code, string) bool) *MockURLRepository_IsURLOwnedByUser_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockURLRepository creates a new instance of MockURLRepository. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockURLRepository(t interface {
