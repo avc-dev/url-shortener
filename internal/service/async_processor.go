@@ -1,6 +1,8 @@
 package service
 
 import (
+	"sync"
+
 	"github.com/avc-dev/url-shortener/internal/model"
 )
 
@@ -65,13 +67,23 @@ func (p *AsyncURLProcessor) ProcessURLsWithWorkers(
 
 	// FanIn: сливаем результаты от всех воркеров в один канал
 	validCodesChan := make(chan model.Code, len(codes))
-	go func() {
-		defer close(validCodesChan)
-		for _, workerChan := range workerChannels {
-			for code := range workerChan {
+
+	// Создаем горутину для каждого воркера для параллельного чтения
+	var wg sync.WaitGroup
+	for _, workerChan := range workerChannels {
+		wg.Add(1)
+		go func(ch <-chan model.Code) {
+			defer wg.Done()
+			for code := range ch {
 				validCodesChan <- code
 			}
-		}
+		}(workerChan)
+	}
+
+	// Закрываем канал после завершения всех горутин
+	go func() {
+		wg.Wait()
+		close(validCodesChan)
 	}()
 
 	// Собираем валидные коды

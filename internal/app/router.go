@@ -1,7 +1,6 @@
 package app
 
 import (
-	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/handler"
 	"github.com/avc-dev/url-shortener/internal/middleware"
 	"github.com/avc-dev/url-shortener/internal/service"
@@ -10,7 +9,7 @@ import (
 )
 
 // newRouter создает и настраивает роутер приложения
-func newRouter(h *handler.Handler, logger *zap.Logger, cfg *config.Config) *chi.Mux {
+func newRouter(h *handler.Handler, logger *zap.Logger, authService *service.AuthService) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Middleware
@@ -18,7 +17,6 @@ func newRouter(h *handler.Handler, logger *zap.Logger, cfg *config.Config) *chi.
 	r.Use(middleware.GzipMiddleware(logger))
 
 	// Auth
-	authService := service.NewAuthService(cfg.JWTSecret)
 	authMiddleware := middleware.NewAuthMiddleware(authService, logger)
 
 	// Routes

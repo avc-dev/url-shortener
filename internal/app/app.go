@@ -4,15 +4,17 @@ import (
 	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/config/db"
 	"github.com/avc-dev/url-shortener/internal/handler"
+	"github.com/avc-dev/url-shortener/internal/service"
 	"go.uber.org/zap"
 )
 
 // App представляет приложение URL shortener
 type App struct {
-	config  *config.Config
-	logger  *zap.Logger
-	handler *handler.Handler
-	dbPool  db.Database
+	config      *config.Config
+	logger      *zap.Logger
+	handler     *handler.Handler
+	dbPool      db.Database
+	authService *service.AuthService
 }
 
 // New создает новый экземпляр приложения
@@ -27,17 +29,18 @@ func New() (*App, error) {
 		return nil, err
 	}
 
-	h, dbPool, err := initDependencies(cfg, logger)
+	h, dbPool, authService, err := initDependencies(cfg, logger)
 	if err != nil {
 		logger.Sync()
 		return nil, err
 	}
 
 	return &App{
-		config:  cfg,
-		logger:  logger,
-		handler: h,
-		dbPool:  dbPool,
+		config:      cfg,
+		logger:      logger,
+		handler:     h,
+		dbPool:      dbPool,
+		authService: authService,
 	}, nil
 }
 

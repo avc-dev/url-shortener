@@ -28,7 +28,7 @@ func TestCreateURLJSON_Success(t *testing.T) {
 		Return(expectedShortURL, nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil, nil)
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	requestBody := ShortenRequest{URL: "https://example.com"}
 	bodyBytes, err := json.Marshal(requestBody)
@@ -87,7 +87,7 @@ func TestCreateURLJSON_InvalidJSON(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
 			mockUsecase := mocks.NewMockURLUsecase(t)
-			handler := New(mockUsecase, zap.NewNop(), nil, nil)
+			handler := New(mockUsecase, zap.NewNop(), nil)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(tt.requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -151,7 +151,7 @@ func TestCreateURLJSON_ErrorMapping(t *testing.T) {
 				Return("", tt.usecaseError).
 				Once()
 
-			handler := New(mockUsecase, zap.NewNop(), nil, nil)
+			handler := New(mockUsecase, zap.NewNop(), nil)
 
 			requestBody := ShortenRequest{URL: "https://example.com"}
 			bodyBytes, err := json.Marshal(requestBody)
@@ -183,7 +183,7 @@ func TestCreateURLJSON_ResponseFormat(t *testing.T) {
 		Return(expectedShortURL, nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil, nil)
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	requestBody := ShortenRequest{URL: "https://practicum.yandex.ru"}
 	bodyBytes, err := json.Marshal(requestBody)
@@ -229,7 +229,7 @@ func TestCreateURLJSON_ContentType(t *testing.T) {
 		Return("http://localhost:8080/abc12345", nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil, nil)
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	requestBody := ShortenRequest{URL: "https://example.com"}
 	bodyBytes, err := json.Marshal(requestBody)
@@ -261,7 +261,7 @@ func TestCreateURLJSON_PassesURLAsIs(t *testing.T) {
 		Return("http://localhost:8080/test1234", nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil, nil)
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	requestBody := ShortenRequest{URL: inputURL}
 	bodyBytes, err := json.Marshal(requestBody)
@@ -288,7 +288,7 @@ func TestCreateURLJSON_URLAlreadyExists(t *testing.T) {
 		Return("", usecase.URLAlreadyExistsError{Code: existingShortURL}).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil, nil)
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	requestBody := ShortenRequest{URL: "https://example.com"}
 	bodyBytes, err := json.Marshal(requestBody)

@@ -8,7 +8,6 @@ import (
 	"github.com/avc-dev/url-shortener/internal/config/db"
 	"github.com/avc-dev/url-shortener/internal/middleware"
 	"github.com/avc-dev/url-shortener/internal/model"
-	"github.com/avc-dev/url-shortener/internal/service"
 	"github.com/avc-dev/url-shortener/internal/usecase"
 	"go.uber.org/zap"
 )
@@ -24,19 +23,17 @@ type URLUsecase interface {
 
 // Handler обрабатывает HTTP запросы
 type Handler struct {
-	usecase     URLUsecase
-	logger      *zap.Logger
-	dbPool      db.Database
-	authService *service.AuthService
+	usecase URLUsecase
+	logger  *zap.Logger
+	dbPool  db.Database
 }
 
 // New создает новый экземпляр Handler
-func New(usecase URLUsecase, logger *zap.Logger, dbPool db.Database, authService *service.AuthService) *Handler {
+func New(usecase URLUsecase, logger *zap.Logger, dbPool db.Database) *Handler {
 	return &Handler{
-		usecase:     usecase,
-		logger:      logger,
-		dbPool:      dbPool,
-		authService: authService,
+		usecase: usecase,
+		logger:  logger,
+		dbPool:  dbPool,
 	}
 }
 

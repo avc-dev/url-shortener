@@ -16,13 +16,13 @@ import (
 )
 
 // initDependencies инициализирует все зависимости приложения
-func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler, db.Database, error) {
+func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler, db.Database, *service.AuthService, error) {
 	var dbPool db.Database
 	if cfg.DatabaseDSN != "" {
 		var err error
 		dbPool, err = initDatabase(cfg, logger)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to initialize database: %w", err)
+			return nil, nil, nil, fmt.Errorf("failed to initialize database: %w", err)
 		}
 	}
 
@@ -31,16 +31,16 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 		if dbPool != nil {
 			dbPool.Close()
 		}
-		return nil, nil, fmt.Errorf("failed to initialize storage: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
 	repo := repository.New(storage)
 	urlService := service.NewURLService(repo, cfg)
 	authService := service.NewAuthService(cfg.JWTSecret)
 	urlUsecase := usecase.NewURLUsecase(repo, urlService, cfg, logger)
-	h := handler.New(urlUsecase, logger, dbPool, authService)
+	h := handler.New(urlUsecase, logger, dbPool)
 
-	return h, dbPool, nil
+	return h, dbPool, authService, nil
 }
 
 // initDatabase инициализирует подключение к базе данных и применяет миграции

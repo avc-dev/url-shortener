@@ -22,6 +22,13 @@ func (u *URLUsecase) DeleteURLs(codes []string, userID string) error {
 
 // deleteURLsAsync асинхронно удаляет URL с использованием воркеров и fanIn паттерна
 func (u *URLUsecase) deleteURLsAsync(codes []model.Code, userID string, originalCodes []string) {
+	defer func() {
+		// Сигнализируем о завершении операции для тестов
+		if u.done != nil {
+			u.done <- struct{}{}
+		}
+	}()
+
 	// Создаем валидатор для проверки принадлежности URL пользователю
 	validator := func(code model.Code) bool {
 		return u.repo.IsURLOwnedByUser(code, userID)

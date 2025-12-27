@@ -9,7 +9,6 @@ import (
 
 	"github.com/avc-dev/url-shortener/internal/mocks"
 	"github.com/avc-dev/url-shortener/internal/model"
-	"github.com/avc-dev/url-shortener/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -19,9 +18,8 @@ func TestCreateURLBatch(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	mockUsecase := &mocks.MockURLUsecase{}
 	mockDB := &mocks.MockDatabase{}
-	mockAuthService := &service.AuthService{} // Using nil for auth service as it's not tested here
 
-	handler := New(mockUsecase, logger, mockDB, mockAuthService)
+	handler := New(mockUsecase, logger, mockDB)
 
 	tests := []struct {
 		name           string

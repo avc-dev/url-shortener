@@ -25,7 +25,7 @@ func TestDeleteURLs_Success(t *testing.T) {
 		Return(nil).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil, nil)
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	codes := []string{"abc123", "def456"}
 	body, _ := json.Marshal(codes)
@@ -52,7 +52,7 @@ func TestDeleteURLs_Success(t *testing.T) {
 func TestDeleteURLs_EmptyCodes(t *testing.T) {
 	// Arrange
 	mockUsecase := mocks.NewMockURLUsecase(t)
-	handler := New(mockUsecase, zap.NewNop(), nil, nil)
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	codes := []string{}
 	body, _ := json.Marshal(codes)
@@ -80,7 +80,7 @@ func TestDeleteURLs_EmptyCodes(t *testing.T) {
 func TestDeleteURLs_InvalidJSON(t *testing.T) {
 	// Arrange
 	mockUsecase := mocks.NewMockURLUsecase(t)
-	handler := New(mockUsecase, zap.NewNop(), nil, nil)
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/user/urls", bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
@@ -106,7 +106,7 @@ func TestDeleteURLs_InvalidJSON(t *testing.T) {
 func TestDeleteURLs_NoUserID(t *testing.T) {
 	// Arrange
 	mockUsecase := mocks.NewMockURLUsecase(t)
-	handler := New(mockUsecase, zap.NewNop(), nil, nil)
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	codes := []string{"abc123"}
 	body, _ := json.Marshal(codes)
@@ -137,7 +137,7 @@ func TestDeleteURLs_UsecaseError(t *testing.T) {
 		Return(assert.AnError).
 		Once()
 
-	handler := New(mockUsecase, zap.NewNop(), nil, nil)
+	handler := New(mockUsecase, zap.NewNop(), nil)
 
 	codes := []string{"abc123"}
 	body, _ := json.Marshal(codes)

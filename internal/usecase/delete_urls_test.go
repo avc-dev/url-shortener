@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -20,8 +21,9 @@ func TestDeleteURLs_Success(t *testing.T) {
 	mockService := mocks.NewMockURLService(t)
 	cfg := &config.Config{}
 	logger := zap.NewNop()
+	done := make(chan struct{}, 1)
 
-	usecase := NewURLUsecase(mockRepo, mockService, cfg, logger)
+	usecase := NewURLUsecaseWithDone(mockRepo, mockService, cfg, logger, done)
 
 	codes := []string{"abc123", "def456"}
 	userID := "test-user"
@@ -36,9 +38,18 @@ func TestDeleteURLs_Success(t *testing.T) {
 		Return(true).
 		Once()
 
-	// Мокаем batch удаление
+	// Мокаем batch удаление (порядок может быть любым из-за параллельной обработки)
 	mockRepo.EXPECT().
-		DeleteURLsBatch([]model.Code{model.Code("abc123"), model.Code("def456")}, userID).
+		DeleteURLsBatch(mock.MatchedBy(func(codes []model.Code) bool {
+			if len(codes) != 2 {
+				return false
+			}
+			codeMap := make(map[model.Code]bool)
+			for _, code := range codes {
+				codeMap[code] = true
+			}
+			return codeMap[model.Code("abc123")] && codeMap[model.Code("def456")]
+		}), userID).
 		Return(nil).
 		Once()
 
@@ -48,8 +59,17 @@ func TestDeleteURLs_Success(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 
-	// Даем время асинхронной операции завершиться
-	time.Sleep(100 * time.Millisecond)
+	// Ждем завершения асинхронной операции с таймаутом
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	select {
+	case <-done:
+		// Операция завершилась успешно
+	case <-ctx.Done():
+		t.Fatal("Тест завис: асинхронная операция не завершилась за 1 секунду")
+	}
+	close(done)
 }
 
 // TestDeleteURLs_NoValidCodes проверяет случай когда ни один URL не принадлежит пользователю
@@ -59,8 +79,9 @@ func TestDeleteURLs_NoValidCodes(t *testing.T) {
 	mockService := mocks.NewMockURLService(t)
 	cfg := &config.Config{}
 	logger := zap.NewNop()
+	done := make(chan struct{}, 1)
 
-	usecase := NewURLUsecase(mockRepo, mockService, cfg, logger)
+	usecase := NewURLUsecaseWithDone(mockRepo, mockService, cfg, logger, done)
 
 	codes := []string{"abc123", "def456"}
 	userID := "test-user"
@@ -84,8 +105,9 @@ func TestDeleteURLs_NoValidCodes(t *testing.T) {
 	// DeleteURLsBatch не должен вызываться, так как нет валидных кодов
 	mockRepo.AssertNotCalled(t, "DeleteURLsBatch")
 
-	// Даем время асинхронной операции завершиться
-	time.Sleep(100 * time.Millisecond)
+	// Ждем завершения асинхронной операции
+	<-done
+	close(done)
 }
 
 // TestDeleteURLs_PartialValidCodes проверяет случай когда только некоторые URL принадлежат пользователю
@@ -95,8 +117,9 @@ func TestDeleteURLs_PartialValidCodes(t *testing.T) {
 	mockService := mocks.NewMockURLService(t)
 	cfg := &config.Config{}
 	logger := zap.NewNop()
+	done := make(chan struct{}, 1)
 
-	usecase := NewURLUsecase(mockRepo, mockService, cfg, logger)
+	usecase := NewURLUsecaseWithDone(mockRepo, mockService, cfg, logger, done)
 
 	codes := []string{"abc123", "def456", "xyz789"}
 	userID := "test-user"
@@ -127,8 +150,17 @@ func TestDeleteURLs_PartialValidCodes(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 
-	// Даем время асинхронной операции завершиться
-	time.Sleep(100 * time.Millisecond)
+	// Ждем завершения асинхронной операции с таймаутом
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	select {
+	case <-done:
+		// Операция завершилась успешно
+	case <-ctx.Done():
+		t.Fatal("Тест завис: асинхронная операция не завершилась за 1 секунду")
+	}
+	close(done)
 }
 
 // TestDeleteURLs_EmptyCodes проверяет обработку пустого списка кодов
@@ -138,8 +170,9 @@ func TestDeleteURLs_EmptyCodes(t *testing.T) {
 	mockService := mocks.NewMockURLService(t)
 	cfg := &config.Config{}
 	logger := zap.NewNop()
+	done := make(chan struct{}, 1)
 
-	usecase := NewURLUsecase(mockRepo, mockService, cfg, logger)
+	usecase := NewURLUsecaseWithDone(mockRepo, mockService, cfg, logger, done)
 
 	codes := []string{}
 	userID := "test-user"
@@ -153,6 +186,10 @@ func TestDeleteURLs_EmptyCodes(t *testing.T) {
 	// Никакие методы репозитория не должны вызываться
 	mockRepo.AssertNotCalled(t, "IsURLOwnedByUser")
 	mockRepo.AssertNotCalled(t, "DeleteURLsBatch")
+
+	// Ждем завершения асинхронной операции
+	<-done
+	close(done)
 }
 
 // TestDeleteURLs_DeleteBatchError проверяет обработку ошибки при batch удалении
@@ -162,8 +199,9 @@ func TestDeleteURLs_DeleteBatchError(t *testing.T) {
 	mockService := mocks.NewMockURLService(t)
 	cfg := &config.Config{}
 	logger := zap.NewNop()
+	done := make(chan struct{}, 1)
 
-	usecase := NewURLUsecase(mockRepo, mockService, cfg, logger)
+	usecase := NewURLUsecaseWithDone(mockRepo, mockService, cfg, logger, done)
 
 	codes := []string{"abc123"}
 	userID := "test-user"
@@ -176,7 +214,9 @@ func TestDeleteURLs_DeleteBatchError(t *testing.T) {
 
 	// Мокаем ошибку при batch удалении
 	mockRepo.EXPECT().
-		DeleteURLsBatch([]model.Code{model.Code("abc123")}, userID).
+		DeleteURLsBatch(mock.MatchedBy(func(codes []model.Code) bool {
+			return len(codes) == 1 && codes[0] == model.Code("abc123")
+		}), userID).
 		Return(assert.AnError).
 		Once()
 
@@ -186,8 +226,9 @@ func TestDeleteURLs_DeleteBatchError(t *testing.T) {
 	// Assert
 	require.NoError(t, err) // DeleteURLs всегда возвращает nil, ошибки логируются
 
-	// Даем время асинхронной операции завершиться
-	time.Sleep(100 * time.Millisecond)
+	// Ждем завершения асинхронной операции
+	<-done
+	close(done)
 }
 
 // TestDeleteURLs_SingleCode проверяет удаление одного URL
@@ -197,8 +238,9 @@ func TestDeleteURLs_SingleCode(t *testing.T) {
 	mockService := mocks.NewMockURLService(t)
 	cfg := &config.Config{}
 	logger := zap.NewNop()
+	done := make(chan struct{}, 1)
 
-	usecase := NewURLUsecase(mockRepo, mockService, cfg, logger)
+	usecase := NewURLUsecaseWithDone(mockRepo, mockService, cfg, logger, done)
 
 	codes := []string{"single123"}
 	userID := "test-user"
@@ -211,7 +253,9 @@ func TestDeleteURLs_SingleCode(t *testing.T) {
 
 	// Мокаем batch удаление
 	mockRepo.EXPECT().
-		DeleteURLsBatch([]model.Code{model.Code("single123")}, userID).
+		DeleteURLsBatch(mock.MatchedBy(func(codes []model.Code) bool {
+			return len(codes) == 1 && codes[0] == model.Code("single123")
+		}), userID).
 		Return(nil).
 		Once()
 
@@ -221,8 +265,17 @@ func TestDeleteURLs_SingleCode(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 
-	// Даем время асинхронной операции завершиться
-	time.Sleep(100 * time.Millisecond)
+	// Ждем завершения асинхронной операции с таймаутом
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	select {
+	case <-done:
+		// Операция завершилась успешно
+	case <-ctx.Done():
+		t.Fatal("Тест завис: асинхронная операция не завершилась за 1 секунду")
+	}
+	close(done)
 }
 
 // TestDeleteURLs_LargeBatch проверяет удаление большого количества URL
@@ -232,8 +285,9 @@ func TestDeleteURLs_LargeBatch(t *testing.T) {
 	mockService := mocks.NewMockURLService(t)
 	cfg := &config.Config{}
 	logger := zap.NewNop()
+	done := make(chan struct{}, 1)
 
-	usecase := NewURLUsecase(mockRepo, mockService, cfg, logger)
+	usecase := NewURLUsecaseWithDone(mockRepo, mockService, cfg, logger, done)
 
 	// Создаем большой список кодов
 	codes := make([]string, 100)
@@ -264,6 +318,15 @@ func TestDeleteURLs_LargeBatch(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 
-	// Даем время асинхронной операции завершиться
-	time.Sleep(200 * time.Millisecond)
+	// Ждем завершения асинхронной операции с таймаутом
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	select {
+	case <-done:
+		// Операция завершилась успешно
+	case <-ctx.Done():
+		t.Fatal("Тест завис: асинхронная операция не завершилась за 1 секунду")
+	}
+	close(done)
 }

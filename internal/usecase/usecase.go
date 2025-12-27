@@ -31,6 +31,7 @@ type URLUsecase struct {
 	asyncProcessor *svc.AsyncURLProcessor
 	cfg            *config.Config
 	logger         *zap.Logger
+	done           chan struct{} // канал для сигнализации завершения асинхронных операций (для тестов)
 }
 
 // NewURLUsecase создает новый экземпляр URLUsecase
@@ -41,5 +42,17 @@ func NewURLUsecase(repo URLRepository, service URLService, cfg *config.Config, l
 		asyncProcessor: svc.NewAsyncURLProcessor(),
 		cfg:            cfg,
 		logger:         logger,
+	}
+}
+
+// NewURLUsecaseWithDone создает новый экземпляр URLUsecase с каналом синхронизации для тестов
+func NewURLUsecaseWithDone(repo URLRepository, service URLService, cfg *config.Config, logger *zap.Logger, done chan struct{}) *URLUsecase {
+	return &URLUsecase{
+		repo:           repo,
+		service:        service,
+		asyncProcessor: svc.NewAsyncURLProcessor(),
+		cfg:            cfg,
+		logger:         logger,
+		done:           done,
 	}
 }

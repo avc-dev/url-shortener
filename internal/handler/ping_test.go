@@ -15,7 +15,7 @@ func TestPing_Success(t *testing.T) {
 	mockDB := mocks.NewMockDatabase(t)
 	mockDB.EXPECT().Ping(mock.Anything).Return(nil).Once()
 
-	handler := New(nil, zap.NewNop(), mockDB, nil)
+	handler := New(nil, zap.NewNop(), mockDB)
 
 	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	w := httptest.NewRecorder()
@@ -30,7 +30,7 @@ func TestPing_DatabaseError(t *testing.T) {
 	mockDB := mocks.NewMockDatabase(t)
 	mockDB.EXPECT().Ping(mock.Anything).Return(assert.AnError).Once()
 
-	handler := New(nil, zap.NewNop(), mockDB, nil)
+	handler := New(nil, zap.NewNop(), mockDB)
 
 	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	w := httptest.NewRecorder()
@@ -42,7 +42,7 @@ func TestPing_DatabaseError(t *testing.T) {
 }
 
 func TestPing_DatabaseNotConfigured(t *testing.T) {
-	handler := New(nil, zap.NewNop(), nil, nil)
+	handler := New(nil, zap.NewNop(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	w := httptest.NewRecorder()
