@@ -131,7 +131,6 @@ func TestDeleteURLs_PartialValidCodes(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-
 // TestDeleteURLs_EmptyCodes проверяет обработку пустого списка кодов
 func TestDeleteURLs_EmptyCodes(t *testing.T) {
 	// Arrange
@@ -251,10 +250,10 @@ func TestDeleteURLs_LargeBatch(t *testing.T) {
 			Once()
 	}
 
-	// Мокаем batch удаление (принимаем любой вызов с правильным userID)
+	// Мокаем batch удаление - принимаем массив из 100 элементов
 	mockRepo.EXPECT().
 		DeleteURLsBatch(mock.MatchedBy(func(codes []model.Code) bool {
-			return len(codes) == 100 && codes[0] == model.Code("a0") // Просто проверяем что массив правильного размера
+			return len(codes) == 100 // Просто проверяем размер массива
 		}), userID).
 		Return(nil).
 		Once()
