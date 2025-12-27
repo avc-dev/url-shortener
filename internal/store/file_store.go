@@ -74,7 +74,6 @@ func (fs *FileStore) loadFromFile() error {
 	}
 
 	data := make(URLMap, len(entries))
-	deletedData := make(map[model.Code]bool, len(entries))
 	for _, entry := range entries {
 		code := model.Code(entry.ShortURL)
 		url := model.URL(entry.OriginalURL)
@@ -82,10 +81,10 @@ func (fs *FileStore) loadFromFile() error {
 		if entry.UserID != "" {
 			fs.userMap[code] = entry.UserID
 		}
-		deletedData[code] = entry.DeletedFlag
+		fs.deletedMap[code] = entry.DeletedFlag
 	}
 
-	fs.store.InitializeWith(data, fs.userMap, deletedData)
+	fs.store.InitializeWith(data, fs.userMap, fs.deletedMap)
 
 	return nil
 }
@@ -200,5 +199,12 @@ func (fs *FileStore) IsURLOwnedByUser(code model.Code, userID string) bool {
 
 // DeleteURLsBatch помечает несколько URL как удалённые для указанного пользователя
 func (fs *FileStore) DeleteURLsBatch(codes []model.Code, userID string) error {
+	// Обновляем deletedMap в FileStore для синхронизации
+	for _, code := range codes {
+		if fs.IsURLOwnedByUser(code, userID) {
+			fs.deletedMap[code] = true
+		}
+	}
+
 	return fs.store.DeleteURLsBatch(codes, userID)
 }
