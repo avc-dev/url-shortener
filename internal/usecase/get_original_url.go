@@ -1,9 +1,11 @@
 package usecase
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/avc-dev/url-shortener/internal/model"
+	"github.com/avc-dev/url-shortener/internal/store"
 	"go.uber.org/zap"
 )
 
@@ -15,6 +17,12 @@ func (u *URLUsecase) GetOriginalURL(code string) (string, error) {
 			zap.String("code", code),
 			zap.Error(err),
 		)
+
+		// Проверяем, не удалён ли URL
+		if errors.Is(err, store.ErrURLDeleted) {
+			return "", fmt.Errorf("%w: %w", ErrURLDeleted, err)
+		}
+
 		return "", fmt.Errorf("%w: %w", ErrURLNotFound, err)
 	}
 

@@ -14,6 +14,7 @@ type URLEntry struct {
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
 	UserID      string `json:"user_id,omitempty"`
+	DeletedFlag bool   `json:"is_deleted,omitempty"`
 }
 
 // BatchShortenRequest представляет элемент запроса для батчевого сокращения URL

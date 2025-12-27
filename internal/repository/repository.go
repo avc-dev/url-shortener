@@ -13,6 +13,8 @@ type Store interface {
 	CreateOrGetURL(code model.Code, url model.URL, userID string) (model.Code, bool, error)
 	IsCodeUnique(code model.Code) bool
 	GetURLsByUserID(userID string, baseURL string) ([]model.UserURLResponse, error)
+	DeleteURLsBatch(codes []model.Code, userID string) error
+	IsURLOwnedByUser(code model.Code, userID string) bool
 }
 
 type Repository struct {
@@ -58,4 +60,16 @@ func (r Repository) GetURLsByUserID(userID string, baseURL string) ([]model.User
 		return nil, fmt.Errorf("failed to get URLs by user ID: %w", err)
 	}
 	return urls, nil
+}
+
+func (r Repository) DeleteURLsBatch(codes []model.Code, userID string) error {
+	err := r.underlying.DeleteURLsBatch(codes, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete URLs batch: %w", err)
+	}
+	return nil
+}
+
+func (r Repository) IsURLOwnedByUser(code model.Code, userID string) bool {
+	return r.underlying.IsURLOwnedByUser(code, userID)
 }

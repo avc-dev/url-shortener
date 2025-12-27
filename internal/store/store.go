@@ -15,22 +15,25 @@ var (
 	ErrAlreadyExists     = errors.New("key already exists")
 	ErrCodeAlreadyExists = errors.New("code already exists")
 	ErrURLAlreadyExists  = errors.New("URL already exists")
+	ErrURLDeleted        = errors.New("URL deleted")
 )
 
 // URLMap представляет маппинг коротких кодов на оригинальные URL
 type URLMap = map[model.Code]model.URL
 
 type Store struct {
-	store   URLMap
-	userMap map[model.Code]string // code -> userID mapping
-	mutex   sync.Mutex
+	store      URLMap
+	userMap    map[model.Code]string // code -> userID mapping
+	deletedMap map[model.Code]bool   // code -> is_deleted mapping
+	mutex      sync.Mutex
 }
 
 func NewStore() *Store {
 	return &Store{
-		store:   make(URLMap),
-		userMap: make(map[model.Code]string),
-		mutex:   sync.Mutex{},
+		store:      make(URLMap),
+		userMap:    make(map[model.Code]string),
+		deletedMap: make(map[model.Code]bool),
+		mutex:      sync.Mutex{},
 	}
 }
 
@@ -42,6 +45,11 @@ func (s *Store) Read(key model.Code) (model.URL, error) {
 
 	if !ok {
 		return "", fmt.Errorf("key %s: %w", key, ErrNotFound)
+	}
+
+	// Проверяем, не удалён ли URL
+	if s.deletedMap[key] {
+		return "", fmt.Errorf("key %s: %w", key, ErrURLDeleted)
 	}
 
 	return value, nil
@@ -58,18 +66,22 @@ func (s *Store) Write(key model.Code, value model.URL, userID string) error {
 
 	s.store[key] = value
 	s.userMap[key] = userID
+	s.deletedMap[key] = false
 
 	return nil
 }
 
 // InitializeWith инициализирует хранилище данными (без проверки на существование)
 // Используется для массовой загрузки данных, например, из файла
-func (s *Store) InitializeWith(data URLMap, userData map[model.Code]string) {
+func (s *Store) InitializeWith(data URLMap, userData map[model.Code]string, deletedData map[model.Code]bool) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	maps.Copy(s.store, data)
 	maps.Copy(s.userMap, userData)
+	if deletedData != nil {
+		maps.Copy(s.deletedMap, deletedData)
+	}
 }
 
 // WriteBatch сохраняет несколько пар код-URL в хранилище атомарно
@@ -88,6 +100,7 @@ func (s *Store) WriteBatch(urls URLMap, userID string) error {
 	for code, url := range urls {
 		s.store[code] = url
 		s.userMap[code] = userID
+		s.deletedMap[code] = false
 	}
 
 	return nil
@@ -115,6 +128,7 @@ func (s *Store) CreateOrGetURL(code model.Code, url model.URL, userID string) (m
 	// Создаем новую запись
 	s.store[code] = url
 	s.userMap[code] = userID
+	s.deletedMap[code] = false
 	return code, true, nil // true = создана новая запись
 }
 
@@ -141,7 +155,7 @@ func (s *Store) GetCodeByURL(url model.URL) (model.Code, error) {
 	return "", fmt.Errorf("URL not found: %w", ErrNotFound)
 }
 
-// GetURLsByUserID возвращает URL пользователя (не поддерживается в memory store)
+// GetURLsByUserID возвращает URL пользователя (исключая удалённые)
 func (s *Store) GetURLsByUserID(userID string, baseURL string) ([]model.UserURLResponse, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -150,6 +164,11 @@ func (s *Store) GetURLsByUserID(userID string, baseURL string) ([]model.UserURLR
 
 	for code, storedUserID := range s.userMap {
 		if storedUserID == userID {
+			// Проверяем, не удалён ли URL
+			if s.deletedMap[code] {
+				continue // Пропускаем удалённые URL
+			}
+
 			// Получаем оригинальный URL
 			originalURL, exists := s.store[code]
 			if !exists {
@@ -170,4 +189,32 @@ func (s *Store) GetURLsByUserID(userID string, baseURL string) ([]model.UserURLR
 	}
 
 	return urls, nil
+}
+
+// IsURLOwnedByUser проверяет, принадлежит ли URL указанному пользователю
+func (s *Store) IsURLOwnedByUser(code model.Code, userID string) bool {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	storedUserID, exists := s.userMap[code]
+	return exists && storedUserID == userID && !s.deletedMap[code]
+}
+
+// DeleteURLsBatch помечает несколько URL как удалённые для указанного пользователя
+func (s *Store) DeleteURLsBatch(codes []model.Code, userID string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	for _, code := range codes {
+		// Проверяем, что URL принадлежит пользователю
+		storedUserID, exists := s.userMap[code]
+		if !exists || storedUserID != userID {
+			continue // Пропускаем, если URL не существует или не принадлежит пользователю
+		}
+
+		// Помечаем как удалённый
+		s.deletedMap[code] = true
+	}
+
+	return nil
 }

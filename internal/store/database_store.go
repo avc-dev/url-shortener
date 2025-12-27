@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/avc-dev/url-shortener/internal/config/db"
 	"github.com/avc-dev/url-shortener/internal/model"
@@ -32,19 +33,24 @@ func NewDatabaseStore(database db.Database) *DatabaseStore {
 // Read читает оригинальный URL по короткому коду
 func (ds *DatabaseStore) Read(key model.Code) (model.URL, error) {
 	var originalURL string
+	var isDeleted bool
 
 	query := `
-		SELECT original_url 
-		FROM urls 
+		SELECT original_url, is_deleted
+		FROM urls
 		WHERE code = $1
 	`
 
-	err := ds.pool.QueryRow(context.Background(), query, string(key)).Scan(&originalURL)
+	err := ds.pool.QueryRow(context.Background(), query, string(key)).Scan(&originalURL, &isDeleted)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return "", fmt.Errorf("key %s: %w", key, ErrNotFound)
 		}
 		return "", fmt.Errorf("failed to read from database: %w", err)
+	}
+
+	if isDeleted {
+		return "", fmt.Errorf("key %s: %w", key, ErrURLDeleted)
 	}
 
 	return model.URL(originalURL), nil
@@ -225,14 +231,14 @@ func (ds *DatabaseStore) GetCodeByURL(url model.URL) (model.Code, error) {
 	return model.Code(code), nil
 }
 
-// GetURLsByUserID возвращает все URL для указанного пользователя
+// GetURLsByUserID возвращает все URL для указанного пользователя (исключая удалённые)
 func (ds *DatabaseStore) GetURLsByUserID(userID string, baseURL string) ([]model.UserURLResponse, error) {
 	ctx := context.Background()
 
 	query := `
 		SELECT code, original_url
 		FROM urls
-		WHERE user_id = $1
+		WHERE user_id = $1 AND is_deleted = false
 		ORDER BY created_at DESC
 	`
 
@@ -265,4 +271,45 @@ func (ds *DatabaseStore) GetURLsByUserID(userID string, baseURL string) ([]model
 	}
 
 	return urls, nil
+}
+
+// IsURLOwnedByUser проверяет, принадлежит ли URL указанному пользователю
+func (ds *DatabaseStore) IsURLOwnedByUser(code model.Code, userID string) bool {
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM urls WHERE code = $1 AND user_id = $2 AND is_deleted = false)`
+	err := ds.pool.QueryRow(context.Background(), query, string(code), userID).Scan(&exists)
+	return err == nil && exists
+}
+
+// DeleteURLsBatch помечает несколько URL как удалённые для указанного пользователя
+// Выполняет batch update без дополнительной валидации (валидация должна происходить на более высоком уровне)
+func (ds *DatabaseStore) DeleteURLsBatch(codes []model.Code, userID string) error {
+	if len(codes) == 0 {
+		return nil
+	}
+
+	ctx := context.Background()
+	return ds.batchUpdateDeletedFlag(ctx, codes, true)
+}
+
+// batchUpdateDeletedFlag выполняет batch update флага is_deleted
+func (ds *DatabaseStore) batchUpdateDeletedFlag(ctx context.Context, codes []model.Code, isDeleted bool) error {
+	// Создаем placeholders для IN запроса
+	placeholders := make([]string, len(codes))
+	args := make([]interface{}, len(codes)+1)
+
+	for i, code := range codes {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = string(code)
+	}
+	args[len(codes)] = isDeleted
+
+	query := fmt.Sprintf(`
+		UPDATE urls
+		SET is_deleted = $%d
+		WHERE code IN (%s)
+	`, len(codes)+1, fmt.Sprintf("(%s)", strings.Join(placeholders, ",")))
+
+	_, err := ds.pool.Exec(ctx, query, args...)
+	return err
 }

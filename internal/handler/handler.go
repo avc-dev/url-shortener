@@ -19,6 +19,7 @@ type URLUsecase interface {
 	CreateShortURLsBatch(urlStrings []string, userID string) ([]string, error)
 	GetOriginalURL(code string) (string, error)
 	GetURLsByUserID(userID string) ([]model.UserURLResponse, error)
+	DeleteURLs(codes []string, userID string) error
 }
 
 // Handler обрабатывает HTTP запросы
@@ -66,6 +67,9 @@ func (h *Handler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, usecase.ErrURLNotFound):
 		h.logger.Debug("URL not found", zap.Error(err))
 		w.WriteHeader(http.StatusNotFound)
+	case errors.Is(err, usecase.ErrURLDeleted):
+		h.logger.Debug("URL deleted", zap.Error(err))
+		w.WriteHeader(http.StatusGone)
 	default:
 		var urlExistsErr usecase.URLAlreadyExistsError
 		if errors.As(err, &urlExistsErr) {

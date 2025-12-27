@@ -30,8 +30,9 @@ func newRouter(h *handler.Handler, logger *zap.Logger, cfg *config.Config) *chi.
 	r.With(authMiddleware.OptionalAuth).Post("/api/shorten", h.CreateURLJSON)
 	r.With(authMiddleware.OptionalAuth).Post("/api/shorten/batch", h.CreateURLBatch)
 
-	// User URLs route - требует аутентификации
+	// User URLs routes - требуют аутентификации
 	r.With(authMiddleware.RequireAuth).Get("/api/user/urls", h.GetUserURLs)
+	r.With(authMiddleware.RequireAuth).Delete("/api/user/urls", h.DeleteURLs)
 
 	return r
 }

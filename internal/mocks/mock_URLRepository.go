@@ -132,6 +132,53 @@ func (_c *MockURLRepository_CreateURLsBatch_Call) RunAndReturn(run func(map[mode
 	return _c
 }
 
+// DeleteURLsBatch provides a mock function with given fields: codes, userID
+func (_m *MockURLRepository) DeleteURLsBatch(codes []model.Code, userID string) error {
+	ret := _m.Called(codes, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteURLsBatch")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func([]model.Code, string) error); ok {
+		r0 = rf(codes, userID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockURLRepository_DeleteURLsBatch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteURLsBatch'
+type MockURLRepository_DeleteURLsBatch_Call struct {
+	*mock.Call
+}
+
+// DeleteURLsBatch is a helper method to define mock.On call
+//   - codes []model.Code
+//   - userID string
+func (_e *MockURLRepository_Expecter) DeleteURLsBatch(codes interface{}, userID interface{}) *MockURLRepository_DeleteURLsBatch_Call {
+	return &MockURLRepository_DeleteURLsBatch_Call{Call: _e.mock.On("DeleteURLsBatch", codes, userID)}
+}
+
+func (_c *MockURLRepository_DeleteURLsBatch_Call) Run(run func(codes []model.Code, userID string)) *MockURLRepository_DeleteURLsBatch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]model.Code), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockURLRepository_DeleteURLsBatch_Call) Return(_a0 error) *MockURLRepository_DeleteURLsBatch_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockURLRepository_DeleteURLsBatch_Call) RunAndReturn(run func([]model.Code, string) error) *MockURLRepository_DeleteURLsBatch_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetURLByCode provides a mock function with given fields: code
 func (_m *MockURLRepository) GetURLByCode(code model.Code) (model.URL, error) {
 	ret := _m.Called(code)

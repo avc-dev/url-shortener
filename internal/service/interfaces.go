@@ -16,6 +16,10 @@ type URLRepository interface {
 	GetURLsByUserID(userID string, baseURL string) ([]model.UserURLResponse, error)
 	// IsCodeUnique проверяет, свободен ли код
 	IsCodeUnique(code model.Code) bool
+	// DeleteURLsBatch помечает несколько URL как удалённые для указанного пользователя
+	DeleteURLsBatch(codes []model.Code, userID string) error
+	// IsURLOwnedByUser проверяет, принадлежит ли URL указанному пользователю
+	IsURLOwnedByUser(code model.Code, userID string) bool
 }
 
 // Generator определяет интерфейс для генерации кодов

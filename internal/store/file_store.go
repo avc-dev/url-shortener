@@ -13,6 +13,7 @@ type FileStore struct {
 	store       *Store
 	fileStorage *FileStorage
 	userMap     map[model.Code]string // code -> userID mapping
+	deletedMap  map[model.Code]bool   // code -> is_deleted mapping
 }
 
 // NewFileStore создаёт FileStore и загружает данные из файла
@@ -24,6 +25,7 @@ func NewFileStore(filePath string) (*FileStore, error) {
 		store:       store,
 		fileStorage: fileStorage,
 		userMap:     make(map[model.Code]string),
+		deletedMap:  make(map[model.Code]bool),
 	}
 
 	// Загружаем данные из файла при инициализации
@@ -46,6 +48,7 @@ func (fs *FileStore) Write(key model.Code, value model.URL, userID string) error
 	}
 
 	fs.userMap[key] = userID
+	fs.deletedMap[key] = false
 
 	// Добавляем только новую запись в файл (O(1) вместо O(n))
 	entry := model.URLEntry{
@@ -53,6 +56,7 @@ func (fs *FileStore) Write(key model.Code, value model.URL, userID string) error
 		ShortURL:    string(key),
 		OriginalURL: string(value),
 		UserID:      userID,
+		DeletedFlag: false,
 	}
 
 	if err := fs.fileStorage.Append(entry); err != nil {
@@ -70,6 +74,7 @@ func (fs *FileStore) loadFromFile() error {
 	}
 
 	data := make(URLMap, len(entries))
+	deletedData := make(map[model.Code]bool, len(entries))
 	for _, entry := range entries {
 		code := model.Code(entry.ShortURL)
 		url := model.URL(entry.OriginalURL)
@@ -77,9 +82,10 @@ func (fs *FileStore) loadFromFile() error {
 		if entry.UserID != "" {
 			fs.userMap[code] = entry.UserID
 		}
+		deletedData[code] = entry.DeletedFlag
 	}
 
-	fs.store.InitializeWith(data, fs.userMap)
+	fs.store.InitializeWith(data, fs.userMap, deletedData)
 
 	return nil
 }
@@ -93,6 +99,7 @@ func (fs *FileStore) WriteBatch(urls URLMap, userID string) error {
 
 	for code := range urls {
 		fs.userMap[code] = userID
+		fs.deletedMap[code] = false
 	}
 
 	// Добавляем все записи в файл
@@ -102,6 +109,7 @@ func (fs *FileStore) WriteBatch(urls URLMap, userID string) error {
 			ShortURL:    string(code),
 			OriginalURL: string(url),
 			UserID:      userID,
+			DeletedFlag: false,
 		}
 
 		if err := fs.fileStorage.Append(entry); err != nil {
@@ -131,8 +139,9 @@ func (fs *FileStore) CreateOrGetURL(code model.Code, url model.URL, userID strin
 		return "", false, err
 	}
 
-	// Сохраняем user_id в памяти
+	// Сохраняем user_id и deleted flag в памяти
 	fs.userMap[finalCode] = userID
+	fs.deletedMap[finalCode] = false
 
 	// Сохраняем в файл
 	entry := model.URLEntry{
@@ -140,6 +149,7 @@ func (fs *FileStore) CreateOrGetURL(code model.Code, url model.URL, userID strin
 		ShortURL:    string(finalCode),
 		OriginalURL: string(url),
 		UserID:      userID,
+		DeletedFlag: false,
 	}
 
 	if err := fs.fileStorage.Append(entry); err != nil {
@@ -149,12 +159,17 @@ func (fs *FileStore) CreateOrGetURL(code model.Code, url model.URL, userID strin
 	return finalCode, created, nil
 }
 
-// GetURLsByUserID возвращает все URL для указанного пользователя из file store
+// GetURLsByUserID возвращает все URL для указанного пользователя из file store (исключая удалённые)
 func (fs *FileStore) GetURLsByUserID(userID string, baseURL string) ([]model.UserURLResponse, error) {
 	var urls []model.UserURLResponse
 
 	for code, storedUserID := range fs.userMap {
 		if storedUserID == userID {
+			// Проверяем, не удалён ли URL
+			if fs.deletedMap[code] {
+				continue // Пропускаем удалённые URL
+			}
+
 			// Получаем оригинальный URL
 			originalURL, err := fs.store.Read(code)
 			if err != nil {
@@ -175,4 +190,15 @@ func (fs *FileStore) GetURLsByUserID(userID string, baseURL string) ([]model.Use
 	}
 
 	return urls, nil
+}
+
+// IsURLOwnedByUser проверяет, принадлежит ли URL указанному пользователю
+func (fs *FileStore) IsURLOwnedByUser(code model.Code, userID string) bool {
+	storedUserID, exists := fs.userMap[code]
+	return exists && storedUserID == userID && !fs.deletedMap[code]
+}
+
+// DeleteURLsBatch помечает несколько URL как удалённые для указанного пользователя
+func (fs *FileStore) DeleteURLsBatch(codes []model.Code, userID string) error {
+	return fs.store.DeleteURLsBatch(codes, userID)
 }

@@ -136,6 +136,53 @@ func (_c *MockURLUsecase_CreateShortURLsBatch_Call) RunAndReturn(run func([]stri
 	return _c
 }
 
+// DeleteURLs provides a mock function with given fields: codes, userID
+func (_m *MockURLUsecase) DeleteURLs(codes []string, userID string) error {
+	ret := _m.Called(codes, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteURLs")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func([]string, string) error); ok {
+		r0 = rf(codes, userID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockURLUsecase_DeleteURLs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteURLs'
+type MockURLUsecase_DeleteURLs_Call struct {
+	*mock.Call
+}
+
+// DeleteURLs is a helper method to define mock.On call
+//   - codes []string
+//   - userID string
+func (_e *MockURLUsecase_Expecter) DeleteURLs(codes interface{}, userID interface{}) *MockURLUsecase_DeleteURLs_Call {
+	return &MockURLUsecase_DeleteURLs_Call{Call: _e.mock.On("DeleteURLs", codes, userID)}
+}
+
+func (_c *MockURLUsecase_DeleteURLs_Call) Run(run func(codes []string, userID string)) *MockURLUsecase_DeleteURLs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]string), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockURLUsecase_DeleteURLs_Call) Return(_a0 error) *MockURLUsecase_DeleteURLs_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockURLUsecase_DeleteURLs_Call) RunAndReturn(run func([]string, string) error) *MockURLUsecase_DeleteURLs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetOriginalURL provides a mock function with given fields: code
 func (_m *MockURLUsecase) GetOriginalURL(code string) (string, error) {
 	ret := _m.Called(code)
