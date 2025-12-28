@@ -10,6 +10,9 @@ import (
 
 // CreateURLBatch обрабатывает POST запрос для создания нескольких коротких URL (batch формат)
 func (h *Handler) CreateURLBatch(w http.ResponseWriter, req *http.Request) {
+	userID, _ := h.getUserIDFromRequest(req)
+	// userID может быть пустым для анонимных пользователей
+
 	var requests []model.BatchShortenRequest
 	if err := json.NewDecoder(req.Body).Decode(&requests); err != nil {
 		h.logger.Warn("failed to decode JSON request",
@@ -36,7 +39,7 @@ func (h *Handler) CreateURLBatch(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Создаем короткие URL
-	shortURLs, err := h.usecase.CreateShortURLsBatch(urlStrings)
+	shortURLs, err := h.usecase.CreateShortURLsBatch(urlStrings, userID)
 	if err != nil {
 		h.handleError(w, err)
 		return

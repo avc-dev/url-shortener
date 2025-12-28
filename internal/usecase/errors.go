@@ -7,6 +7,7 @@ var (
 	ErrEmptyURL           = errors.New("empty URL")
 	ErrServiceUnavailable = errors.New("service unavailable")
 	ErrURLNotFound        = errors.New("URL not found")
+	ErrURLDeleted         = errors.New("URL deleted")
 	ErrURLAlreadyExists   = errors.New("URL already exists")
 )
 

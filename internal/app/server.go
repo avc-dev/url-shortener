@@ -8,7 +8,7 @@ import (
 
 // start запускает HTTP сервер
 func (a *App) start() error {
-	router := newRouter(a.handler, a.logger)
+	router := newRouter(a.handler, a.logger, a.authService)
 
 	a.logger.Info("Starting server", zap.String("address", a.config.ServerAddress.String()))
 

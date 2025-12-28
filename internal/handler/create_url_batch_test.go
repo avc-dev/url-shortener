@@ -17,8 +17,9 @@ import (
 func TestCreateURLBatch(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	mockUsecase := &mocks.MockURLUsecase{}
+	mockDB := &mocks.MockDatabase{}
 
-	handler := New(mockUsecase, logger, nil)
+	handler := New(mockUsecase, logger, mockDB)
 
 	tests := []struct {
 		name           string
@@ -34,7 +35,7 @@ func TestCreateURLBatch(t *testing.T) {
 				{CorrelationID: "2", OriginalURL: "https://google.com"},
 			},
 			mockSetup: func() {
-				mockUsecase.EXPECT().CreateShortURLsBatch([]string{"https://example.com", "https://google.com"}).
+				mockUsecase.EXPECT().CreateShortURLsBatch([]string{"https://example.com", "https://google.com"}, "").
 					Return([]string{"http://localhost:8080/abc123", "http://localhost:8080/def456"}, nil)
 			},
 			expectedStatus: http.StatusCreated,

@@ -1,19 +1,17 @@
 package usecase
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/avc-dev/url-shortener/internal/model"
-	"github.com/avc-dev/url-shortener/internal/store"
 	"go.uber.org/zap"
 )
 
 // CreateShortURLFromString создает короткий URL из строки оригинального URL
 // Выполняет валидацию, очистку URL и генерацию короткого кода
-func (u *URLUsecase) CreateShortURLFromString(urlString string) (string, error) {
+func (u *URLUsecase) CreateShortURLFromString(urlString string, userID string) (string, error) {
 	urlString = strings.TrimSpace(urlString)
 	urlString = strings.Trim(urlString, `"'`)
 
@@ -35,28 +33,28 @@ func (u *URLUsecase) CreateShortURLFromString(urlString string) (string, error) 
 	}
 
 	originalURL := model.URL(urlString)
-	code, err := u.service.CreateShortURL(originalURL)
+	code, created, err := u.service.CreateShortURL(originalURL, userID)
 	if err != nil {
-		// Проверяем, является ли ошибка дублированием URL
-		if errors.Is(err, store.ErrURLAlreadyExists) {
-			// Извлекаем код из ошибки
-			shortURL, err := url.JoinPath(u.cfg.BaseURL.String(), string(code))
-			if err != nil {
-				u.logger.Error("failed to build short URL",
-					zap.String("base_url", u.cfg.BaseURL.String()),
-					zap.String("code", string(code)),
-					zap.Error(err),
-				)
-				return "", fmt.Errorf("%w: failed to build short URL: %w", ErrServiceUnavailable, err)
-			}
-			return "", URLAlreadyExistsError{Code: shortURL}
-		}
-
 		u.logger.Error("failed to create short URL",
 			zap.String("original_url", string(originalURL)),
+			zap.String("user_id", userID),
 			zap.Error(err),
 		)
 		return "", fmt.Errorf("%w: %w", ErrServiceUnavailable, err)
+	}
+
+	if !created {
+		// URL уже существует для этого пользователя - возвращаем ошибку конфликта
+		shortURL, err := url.JoinPath(u.cfg.BaseURL.String(), string(code))
+		if err != nil {
+			u.logger.Error("failed to build short URL",
+				zap.String("base_url", u.cfg.BaseURL.String()),
+				zap.String("code", string(code)),
+				zap.Error(err),
+			)
+			return "", fmt.Errorf("%w: failed to build short URL: %w", ErrServiceUnavailable, err)
+		}
+		return "", URLAlreadyExistsError{Code: shortURL}
 	}
 
 	shortURL, err := url.JoinPath(u.cfg.BaseURL.String(), string(code))

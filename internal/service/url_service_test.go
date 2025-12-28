@@ -1,13 +1,11 @@
 package service
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/mocks"
 	"github.com/avc-dev/url-shortener/internal/model"
-	"github.com/avc-dev/url-shortener/internal/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +31,7 @@ func TestCreateShortURL_Success(t *testing.T) {
 
 	// Создание или получение URL - создается новая запись
 	mockRepo.EXPECT().
-		CreateOrGetURL(expectedCode, model.URL("https://example.com")).
+		CreateOrGetURL(expectedCode, model.URL("https://example.com"), "test-user").
 		Return(expectedCode, true, nil). // true = создана новая запись
 		Once()
 
@@ -46,11 +44,12 @@ func TestCreateShortURL_Success(t *testing.T) {
 	originalURL := model.URL("https://example.com")
 
 	// Act
-	code, err := service.CreateShortURL(originalURL)
+	code, created, err := service.CreateShortURL(originalURL, "test-user")
 
 	// Assert
 	require.NoError(t, err)
 	assert.Equal(t, expectedCode, code)
+	assert.True(t, created) // должна быть создана новая запись
 }
 
 // TestCreateShortURL_URLAlreadyExists проверяет возврат существующего кода при дублировании URL
@@ -75,7 +74,7 @@ func TestCreateShortURL_URLAlreadyExists(t *testing.T) {
 
 	// URL уже существует - возвращается существующий код
 	mockRepo.EXPECT().
-		CreateOrGetURL(newCode, model.URL("https://example.com")).
+		CreateOrGetURL(newCode, model.URL("https://example.com"), "test-user").
 		Return(existingCode, false, nil). // false = запись уже существовала
 		Once()
 
@@ -88,10 +87,10 @@ func TestCreateShortURL_URLAlreadyExists(t *testing.T) {
 	originalURL := model.URL("https://example.com")
 
 	// Act
-	code, err := service.CreateShortURL(originalURL)
+	code, created, err := service.CreateShortURL(originalURL, "test-user")
 
 	// Assert
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, store.ErrURLAlreadyExists))
+	require.NoError(t, err) // теперь ошибки не должно быть
 	assert.Equal(t, existingCode, code)
+	assert.False(t, created) // запись уже существовала
 }

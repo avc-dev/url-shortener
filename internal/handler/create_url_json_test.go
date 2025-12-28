@@ -24,7 +24,7 @@ func TestCreateURLJSON_Success(t *testing.T) {
 	expectedShortURL := "http://localhost:8080/abc12345"
 
 	mockUsecase.EXPECT().
-		CreateShortURLFromString("https://example.com").
+		CreateShortURLFromString("https://example.com", "").
 		Return(expectedShortURL, nil).
 		Once()
 
@@ -147,7 +147,7 @@ func TestCreateURLJSON_ErrorMapping(t *testing.T) {
 			// Arrange
 			mockUsecase := mocks.NewMockURLUsecase(t)
 			mockUsecase.EXPECT().
-				CreateShortURLFromString("https://example.com").
+				CreateShortURLFromString("https://example.com", "").
 				Return("", tt.usecaseError).
 				Once()
 
@@ -179,7 +179,7 @@ func TestCreateURLJSON_ResponseFormat(t *testing.T) {
 	mockUsecase := mocks.NewMockURLUsecase(t)
 	expectedShortURL := "http://localhost:8080/abc12345"
 	mockUsecase.EXPECT().
-		CreateShortURLFromString("https://practicum.yandex.ru").
+		CreateShortURLFromString("https://practicum.yandex.ru", "").
 		Return(expectedShortURL, nil).
 		Once()
 
@@ -225,7 +225,7 @@ func TestCreateURLJSON_ContentType(t *testing.T) {
 	// Arrange
 	mockUsecase := mocks.NewMockURLUsecase(t)
 	mockUsecase.EXPECT().
-		CreateShortURLFromString("https://example.com").
+		CreateShortURLFromString("https://example.com", "").
 		Return("http://localhost:8080/abc12345", nil).
 		Once()
 
@@ -257,7 +257,7 @@ func TestCreateURLJSON_PassesURLAsIs(t *testing.T) {
 	// Проверяем что usecase получает URL как есть из JSON
 	inputURL := "https://example.com"
 	mockUsecase.EXPECT().
-		CreateShortURLFromString(inputURL).
+		CreateShortURLFromString(inputURL, "").
 		Return("http://localhost:8080/test1234", nil).
 		Once()
 
@@ -284,7 +284,7 @@ func TestCreateURLJSON_URLAlreadyExists(t *testing.T) {
 	mockUsecase := mocks.NewMockURLUsecase(t)
 	existingShortURL := "http://localhost:8080/existing"
 	mockUsecase.EXPECT().
-		CreateShortURLFromString("https://example.com").
+		CreateShortURLFromString("https://example.com", "").
 		Return("", usecase.URLAlreadyExistsError{Code: existingShortURL}).
 		Once()
 

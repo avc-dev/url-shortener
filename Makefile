@@ -38,6 +38,7 @@ docker-logs:
 check-migrate:
 	@command -v migrate >/dev/null 2>&1 || { echo "migrate tool is not installed. Please install it from https://github.com/golang-migrate/migrate/tree/master/cmd/migrate" >&2; exit 1; }
 
+
 # Build and run the application (migrations will be applied automatically if DB is used)
 .PHONY: run
 run: build

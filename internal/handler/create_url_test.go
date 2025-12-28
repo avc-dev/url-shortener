@@ -22,7 +22,7 @@ func TestCreateURL_Success(t *testing.T) {
 	expectedShortURL := "http://localhost:8080/testcode"
 
 	mockUsecase.EXPECT().
-		CreateShortURLFromString("https://example.com").
+		CreateShortURLFromString("https://example.com", "").
 		Return(expectedShortURL, nil).
 		Once()
 
@@ -54,7 +54,7 @@ func TestCreateURL_EmptyBody(t *testing.T) {
 
 	// Usecase получит пустую строку и вернет ошибку валидации
 	mockUsecase.EXPECT().
-		CreateShortURLFromString("").
+		CreateShortURLFromString("", "").
 		Return("", usecase.ErrEmptyURL).
 		Once()
 
@@ -133,7 +133,7 @@ func TestCreateURL_ErrorMapping(t *testing.T) {
 			mockUsecase := mocks.NewMockURLUsecase(t)
 
 			mockUsecase.EXPECT().
-				CreateShortURLFromString("https://example.com").
+				CreateShortURLFromString("https://example.com", "").
 				Return("", tt.usecaseError).
 				Once()
 
@@ -161,7 +161,7 @@ func TestCreateURL_ContentType(t *testing.T) {
 	mockUsecase := mocks.NewMockURLUsecase(t)
 
 	mockUsecase.EXPECT().
-		CreateShortURLFromString("https://example.com").
+		CreateShortURLFromString("https://example.com", "").
 		Return("http://localhost:8080/testcode", nil).
 		Once()
 
@@ -189,7 +189,7 @@ func TestCreateURL_ResponseBody(t *testing.T) {
 	expectedShortURL := "http://localhost:8080/abc12345"
 
 	mockUsecase.EXPECT().
-		CreateShortURLFromString("https://practicum.yandex.ru").
+		CreateShortURLFromString("https://practicum.yandex.ru", "").
 		Return(expectedShortURL, nil).
 		Once()
 
@@ -240,7 +240,7 @@ func TestCreateURL_PassesBodyAsIs(t *testing.T) {
 
 			// Проверяем что usecase получает URL как есть, без обработки
 			mockUsecase.EXPECT().
-				CreateShortURLFromString(tt.inputURL).
+				CreateShortURLFromString(tt.inputURL, "").
 				Return("http://localhost:8080/testcode", nil).
 				Once()
 

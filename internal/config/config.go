@@ -16,6 +16,7 @@ type Config struct {
 	BaseURL         URLPrefix      `env:"BASE_URL"`
 	FileStoragePath string         `env:"FILE_STORAGE_PATH"`
 	DatabaseDSN     string         `env:"DATABASE_DSN"`
+	JWTSecret       string         `env:"JWT_SECRET" envDefault:"your-secret-key"`
 	Retry           RetryConfig    `envPrefix:"RETRY_"`
 }
 
@@ -24,6 +25,7 @@ func NewDefaultConfig() *Config {
 	return &Config{
 		ServerAddress: NetworkAddress{Host: "localhost", Port: 8080},
 		BaseURL:       URLPrefix("http://localhost:8080/"),
+		JWTSecret:     "your-secret-key",
 		Retry:         RetryConfig{MaxAttempts: 100},
 	}
 }
@@ -39,6 +41,7 @@ func Load() (*Config, error) {
 	baseURLFlag := flag.String("b", "", "base URL for shortened URL")
 	fileStoragePathFlag := flag.String("f", "", "file storage path")
 	databaseDSNFlag := flag.String("d", "", "database DSN")
+	jwtSecretFlag := flag.String("j", "", "JWT secret key")
 	maxAttemptsFlag := flag.Int("r", 0, "maximum attempts for code generation")
 	flag.Parse()
 
@@ -57,6 +60,9 @@ func Load() (*Config, error) {
 	}
 	if *databaseDSNFlag != "" {
 		cfg.DatabaseDSN = *databaseDSNFlag
+	}
+	if *jwtSecretFlag != "" {
+		cfg.JWTSecret = *jwtSecretFlag
 	}
 	if *maxAttemptsFlag > 0 {
 		cfg.Retry.MaxAttempts = *maxAttemptsFlag

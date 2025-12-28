@@ -59,14 +59,14 @@ func TestCreateShortURLFromString_Success(t *testing.T) {
 			cfg := config.NewDefaultConfig()
 
 			mockService.EXPECT().
-				CreateShortURL(model.URL(tt.expectedURL)).
-				Return(model.Code(tt.generatedCode), nil).
+				CreateShortURL(model.URL(tt.expectedURL), "test-user").
+				Return(model.Code(tt.generatedCode), true, nil).
 				Once()
 
 			usecase := NewURLUsecase(mockRepo, mockService, cfg, zap.NewNop())
 
 			// Act
-			result, err := usecase.CreateShortURLFromString(tt.inputURL)
+			result, err := usecase.CreateShortURLFromString(tt.inputURL, "test-user")
 
 			// Assert
 			require.NoError(t, err)
@@ -122,14 +122,14 @@ func TestCreateShortURLFromString_URLCleaning(t *testing.T) {
 			cfg := config.NewDefaultConfig()
 
 			mockService.EXPECT().
-				CreateShortURL(model.URL(tt.expectedURL)).
-				Return(model.Code(tt.generatedCode), nil).
+				CreateShortURL(model.URL(tt.expectedURL), "test-user").
+				Return(model.Code(tt.generatedCode), true, nil).
 				Once()
 
 			usecase := NewURLUsecase(mockRepo, mockService, cfg, zap.NewNop())
 
 			// Act
-			result, err := usecase.CreateShortURLFromString(tt.inputURL)
+			result, err := usecase.CreateShortURLFromString(tt.inputURL, "test-user")
 
 			// Assert
 			require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestCreateShortURLFromString_EmptyURL(t *testing.T) {
 			usecase := NewURLUsecase(mockRepo, mockService, cfg, zap.NewNop())
 
 			// Act
-			result, err := usecase.CreateShortURLFromString(tt.inputURL)
+			result, err := usecase.CreateShortURLFromString(tt.inputURL, "test-user")
 
 			// Assert
 			assert.ErrorIs(t, err, ErrEmptyURL)
@@ -222,7 +222,7 @@ func TestCreateShortURLFromString_InvalidURL(t *testing.T) {
 			usecase := NewURLUsecase(mockRepo, mockService, cfg, zap.NewNop())
 
 			// Act
-			result, err := usecase.CreateShortURLFromString(tt.inputURL)
+			result, err := usecase.CreateShortURLFromString(tt.inputURL, "test-user")
 
 			// Assert
 			assert.ErrorIs(t, err, ErrInvalidURL)
@@ -259,14 +259,14 @@ func TestCreateShortURLFromString_ServiceError(t *testing.T) {
 			cfg := config.NewDefaultConfig()
 
 			mockService.EXPECT().
-				CreateShortURL(model.URL("https://example.com")).
-				Return(model.Code(""), tt.serviceError).
+				CreateShortURL(model.URL("https://example.com"), "test-user").
+				Return(model.Code(""), false, tt.serviceError).
 				Once()
 
 			usecase := NewURLUsecase(mockRepo, mockService, cfg, zap.NewNop())
 
 			// Act
-			result, err := usecase.CreateShortURLFromString("https://example.com")
+			result, err := usecase.CreateShortURLFromString("https://example.com", "test-user")
 
 			// Assert
 			assert.ErrorIs(t, err, ErrServiceUnavailable)
@@ -286,14 +286,14 @@ func TestCreateShortURLFromString_LongURL(t *testing.T) {
 	generatedCode := "longurl1"
 
 	mockService.EXPECT().
-		CreateShortURL(model.URL(longURL)).
-		Return(model.Code(generatedCode), nil).
+		CreateShortURL(model.URL(longURL), "test-user").
+		Return(model.Code(generatedCode), true, nil).
 		Once()
 
 	usecase := NewURLUsecase(mockRepo, mockService, cfg, zap.NewNop())
 
 	// Act
-	result, err := usecase.CreateShortURLFromString(longURL)
+	result, err := usecase.CreateShortURLFromString(longURL, "test-user")
 
 	// Assert
 	require.NoError(t, err)
@@ -332,14 +332,14 @@ func TestCreateShortURLFromString_SpecialCharacters(t *testing.T) {
 
 			generatedCode := "test1234"
 			mockService.EXPECT().
-				CreateShortURL(model.URL(tt.expectedURL)).
-				Return(model.Code(generatedCode), nil).
+				CreateShortURL(model.URL(tt.expectedURL), "test-user").
+				Return(model.Code(generatedCode), true, nil).
 				Once()
 
 			usecase := NewURLUsecase(mockRepo, mockService, cfg, zap.NewNop())
 
 			// Act
-			result, err := usecase.CreateShortURLFromString(tt.inputURL)
+			result, err := usecase.CreateShortURLFromString(tt.inputURL, "test-user")
 
 			// Assert
 			require.NoError(t, err)

@@ -33,8 +33,9 @@ func TestFileStore_WriteAndRead(t *testing.T) {
 	// Записываем данные
 	code := model.Code("abc123")
 	url := model.URL("https://example.com")
+	userID := "test-user"
 
-	err = fs.Write(code, url)
+	err = fs.Write(code, url, userID)
 	require.NoError(t, err)
 
 	// Читаем данные
@@ -62,7 +63,7 @@ func TestFileStore_Persistence(t *testing.T) {
 	}
 
 	for code, url := range testData {
-		err = fs1.Write(code, url)
+		err = fs1.Write(code, url, "test-user")
 		require.NoError(t, err)
 	}
 
@@ -89,11 +90,11 @@ func TestFileStore_WriteExistingKey(t *testing.T) {
 	url2 := model.URL("https://example.com/2")
 
 	// Первая запись должна пройти успешно
-	err = fs.Write(code, url1)
+	err = fs.Write(code, url1, "test-user")
 	require.NoError(t, err)
 
 	// Вторая запись с тем же ключом должна вернуть ошибку
-	err = fs.Write(code, url2)
+	err = fs.Write(code, url2, "test-user")
 	assert.ErrorIs(t, err, ErrCodeAlreadyExists)
 }
 
@@ -163,7 +164,7 @@ func TestFileStore_MultipleWrites(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		code := model.Code(string(rune('a' + i)))
 		url := model.URL("https://example.com/" + string(rune('a'+i)))
-		err = fs.Write(code, url)
+		err = fs.Write(code, url, "test-user")
 		require.NoError(t, err)
 	}
 

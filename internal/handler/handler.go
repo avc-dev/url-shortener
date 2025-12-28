@@ -1,19 +1,24 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/avc-dev/url-shortener/internal/config/db"
+	"github.com/avc-dev/url-shortener/internal/middleware"
+	"github.com/avc-dev/url-shortener/internal/model"
 	"github.com/avc-dev/url-shortener/internal/usecase"
 	"go.uber.org/zap"
 )
 
 // URLUsecase определяет интерфейс для бизнес-логики работы с URL
 type URLUsecase interface {
-	CreateShortURLFromString(urlString string) (string, error)
-	CreateShortURLsBatch(urlStrings []string) ([]string, error)
+	CreateShortURLFromString(urlString string, userID string) (string, error)
+	CreateShortURLsBatch(urlStrings []string, userID string) ([]string, error)
 	GetOriginalURL(code string) (string, error)
+	GetURLsByUserID(userID string) ([]model.UserURLResponse, error)
+	DeleteURLs(codes []string, userID string) error
 }
 
 // Handler обрабатывает HTTP запросы
@@ -59,8 +64,41 @@ func (h *Handler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, usecase.ErrURLNotFound):
 		h.logger.Debug("URL not found", zap.Error(err))
 		w.WriteHeader(http.StatusNotFound)
+	case errors.Is(err, usecase.ErrURLDeleted):
+		h.logger.Debug("URL deleted", zap.Error(err))
+		w.WriteHeader(http.StatusGone)
 	default:
+		var urlExistsErr usecase.URLAlreadyExistsError
+		if errors.As(err, &urlExistsErr) {
+			// При конфликте URL возвращаем существующий код в теле ответа
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(urlExistsErr.ExistingCode()))
+			return
+		}
 		h.logger.Error("internal server error", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 	}
+}
+
+// handleErrorJSON обрабатывает ошибки для JSON API endpoints
+func (h *Handler) handleErrorJSON(w http.ResponseWriter, err error) {
+	var urlExistsErr usecase.URLAlreadyExistsError
+	if errors.As(err, &urlExistsErr) {
+		// Для JSON API при конфликте URL возвращаем существующий код
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		response := map[string]string{"result": urlExistsErr.ExistingCode()}
+		if jsonErr := json.NewEncoder(w).Encode(response); jsonErr != nil {
+			h.logger.Error("failed to encode JSON response", zap.Error(jsonErr))
+		}
+		return
+	}
+
+	// Для остальных ошибок используем обычную обработку
+	h.handleError(w, err)
+}
+
+// getUserIDFromRequest извлекает user_id из контекста запроса
+func (h *Handler) getUserIDFromRequest(r *http.Request) (string, bool) {
+	return middleware.GetUserIDFromContext(r.Context())
 }

@@ -20,32 +20,39 @@ func (_m *MockURLService) EXPECT() *MockURLService_Expecter {
 	return &MockURLService_Expecter{mock: &_m.Mock}
 }
 
-// CreateShortURL provides a mock function with given fields: originalURL
-func (_m *MockURLService) CreateShortURL(originalURL model.URL) (model.Code, error) {
-	ret := _m.Called(originalURL)
+// CreateShortURL provides a mock function with given fields: originalURL, userID
+func (_m *MockURLService) CreateShortURL(originalURL model.URL, userID string) (model.Code, bool, error) {
+	ret := _m.Called(originalURL, userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateShortURL")
 	}
 
 	var r0 model.Code
-	var r1 error
-	if rf, ok := ret.Get(0).(func(model.URL) (model.Code, error)); ok {
-		return rf(originalURL)
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(model.URL, string) (model.Code, bool, error)); ok {
+		return rf(originalURL, userID)
 	}
-	if rf, ok := ret.Get(0).(func(model.URL) model.Code); ok {
-		r0 = rf(originalURL)
+	if rf, ok := ret.Get(0).(func(model.URL, string) model.Code); ok {
+		r0 = rf(originalURL, userID)
 	} else {
 		r0 = ret.Get(0).(model.Code)
 	}
 
-	if rf, ok := ret.Get(1).(func(model.URL) error); ok {
-		r1 = rf(originalURL)
+	if rf, ok := ret.Get(1).(func(model.URL, string) bool); ok {
+		r1 = rf(originalURL, userID)
 	} else {
-		r1 = ret.Error(1)
+		r1 = ret.Get(1).(bool)
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(model.URL, string) error); ok {
+		r2 = rf(originalURL, userID)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // MockURLService_CreateShortURL_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateShortURL'
@@ -55,30 +62,31 @@ type MockURLService_CreateShortURL_Call struct {
 
 // CreateShortURL is a helper method to define mock.On call
 //   - originalURL model.URL
-func (_e *MockURLService_Expecter) CreateShortURL(originalURL interface{}) *MockURLService_CreateShortURL_Call {
-	return &MockURLService_CreateShortURL_Call{Call: _e.mock.On("CreateShortURL", originalURL)}
+//   - userID string
+func (_e *MockURLService_Expecter) CreateShortURL(originalURL interface{}, userID interface{}) *MockURLService_CreateShortURL_Call {
+	return &MockURLService_CreateShortURL_Call{Call: _e.mock.On("CreateShortURL", originalURL, userID)}
 }
 
-func (_c *MockURLService_CreateShortURL_Call) Run(run func(originalURL model.URL)) *MockURLService_CreateShortURL_Call {
+func (_c *MockURLService_CreateShortURL_Call) Run(run func(originalURL model.URL, userID string)) *MockURLService_CreateShortURL_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(model.URL))
+		run(args[0].(model.URL), args[1].(string))
 	})
 	return _c
 }
 
-func (_c *MockURLService_CreateShortURL_Call) Return(_a0 model.Code, _a1 error) *MockURLService_CreateShortURL_Call {
-	_c.Call.Return(_a0, _a1)
+func (_c *MockURLService_CreateShortURL_Call) Return(_a0 model.Code, _a1 bool, _a2 error) *MockURLService_CreateShortURL_Call {
+	_c.Call.Return(_a0, _a1, _a2)
 	return _c
 }
 
-func (_c *MockURLService_CreateShortURL_Call) RunAndReturn(run func(model.URL) (model.Code, error)) *MockURLService_CreateShortURL_Call {
+func (_c *MockURLService_CreateShortURL_Call) RunAndReturn(run func(model.URL, string) (model.Code, bool, error)) *MockURLService_CreateShortURL_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// CreateShortURLsBatch provides a mock function with given fields: originalURLs
-func (_m *MockURLService) CreateShortURLsBatch(originalURLs []model.URL) ([]model.Code, error) {
-	ret := _m.Called(originalURLs)
+// CreateShortURLsBatch provides a mock function with given fields: originalURLs, userID
+func (_m *MockURLService) CreateShortURLsBatch(originalURLs []model.URL, userID string) ([]model.Code, error) {
+	ret := _m.Called(originalURLs, userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateShortURLsBatch")
@@ -86,19 +94,19 @@ func (_m *MockURLService) CreateShortURLsBatch(originalURLs []model.URL) ([]mode
 
 	var r0 []model.Code
 	var r1 error
-	if rf, ok := ret.Get(0).(func([]model.URL) ([]model.Code, error)); ok {
-		return rf(originalURLs)
+	if rf, ok := ret.Get(0).(func([]model.URL, string) ([]model.Code, error)); ok {
+		return rf(originalURLs, userID)
 	}
-	if rf, ok := ret.Get(0).(func([]model.URL) []model.Code); ok {
-		r0 = rf(originalURLs)
+	if rf, ok := ret.Get(0).(func([]model.URL, string) []model.Code); ok {
+		r0 = rf(originalURLs, userID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]model.Code)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func([]model.URL) error); ok {
-		r1 = rf(originalURLs)
+	if rf, ok := ret.Get(1).(func([]model.URL, string) error); ok {
+		r1 = rf(originalURLs, userID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -113,13 +121,14 @@ type MockURLService_CreateShortURLsBatch_Call struct {
 
 // CreateShortURLsBatch is a helper method to define mock.On call
 //   - originalURLs []model.URL
-func (_e *MockURLService_Expecter) CreateShortURLsBatch(originalURLs interface{}) *MockURLService_CreateShortURLsBatch_Call {
-	return &MockURLService_CreateShortURLsBatch_Call{Call: _e.mock.On("CreateShortURLsBatch", originalURLs)}
+//   - userID string
+func (_e *MockURLService_Expecter) CreateShortURLsBatch(originalURLs interface{}, userID interface{}) *MockURLService_CreateShortURLsBatch_Call {
+	return &MockURLService_CreateShortURLsBatch_Call{Call: _e.mock.On("CreateShortURLsBatch", originalURLs, userID)}
 }
 
-func (_c *MockURLService_CreateShortURLsBatch_Call) Run(run func(originalURLs []model.URL)) *MockURLService_CreateShortURLsBatch_Call {
+func (_c *MockURLService_CreateShortURLsBatch_Call) Run(run func(originalURLs []model.URL, userID string)) *MockURLService_CreateShortURLsBatch_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].([]model.URL))
+		run(args[0].([]model.URL), args[1].(string))
 	})
 	return _c
 }
@@ -129,7 +138,7 @@ func (_c *MockURLService_CreateShortURLsBatch_Call) Return(_a0 []model.Code, _a1
 	return _c
 }
 
-func (_c *MockURLService_CreateShortURLsBatch_Call) RunAndReturn(run func([]model.URL) ([]model.Code, error)) *MockURLService_CreateShortURLsBatch_Call {
+func (_c *MockURLService_CreateShortURLsBatch_Call) RunAndReturn(run func([]model.URL, string) ([]model.Code, error)) *MockURLService_CreateShortURLsBatch_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/avc-dev/url-shortener/internal/config/db"
 	"github.com/avc-dev/url-shortener/internal/model"
@@ -31,14 +33,15 @@ func NewDatabaseStore(database db.Database) *DatabaseStore {
 // Read читает оригинальный URL по короткому коду
 func (ds *DatabaseStore) Read(key model.Code) (model.URL, error) {
 	var originalURL string
+	var isDeleted bool
 
 	query := `
-		SELECT original_url 
-		FROM urls 
+		SELECT original_url, is_deleted
+		FROM urls
 		WHERE code = $1
 	`
 
-	err := ds.pool.QueryRow(context.Background(), query, string(key)).Scan(&originalURL)
+	err := ds.pool.QueryRow(context.Background(), query, string(key)).Scan(&originalURL, &isDeleted)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return "", fmt.Errorf("key %s: %w", key, ErrNotFound)
@@ -46,11 +49,15 @@ func (ds *DatabaseStore) Read(key model.Code) (model.URL, error) {
 		return "", fmt.Errorf("failed to read from database: %w", err)
 	}
 
+	if isDeleted {
+		return "", fmt.Errorf("key %s: %w", key, ErrURLDeleted)
+	}
+
 	return model.URL(originalURL), nil
 }
 
-// Write сохраняет пару код-URL в базу данных
-func (ds *DatabaseStore) Write(key model.Code, value model.URL) error {
+// Write сохраняет пару код-URL с userID в базу данных
+func (ds *DatabaseStore) Write(key model.Code, value model.URL, userID string) error {
 	ctx := context.Background()
 
 	// Проверяем существование ключа
@@ -72,11 +79,11 @@ func (ds *DatabaseStore) Write(key model.Code, value model.URL) error {
 
 	// Вставляем новую запись
 	query = `
-		INSERT INTO urls (code, original_url) 
-		VALUES ($1, $2)
+		INSERT INTO urls (code, original_url, user_id)
+		VALUES ($1, $2, $3)
 	`
 
-	_, err = ds.pool.Exec(ctx, query, string(key), string(value))
+	_, err = ds.pool.Exec(ctx, query, string(key), string(value), userID)
 	if err != nil {
 		return fmt.Errorf("failed to insert into database: %w", err)
 	}
@@ -84,8 +91,8 @@ func (ds *DatabaseStore) Write(key model.Code, value model.URL) error {
 	return nil
 }
 
-// WriteBatch сохраняет несколько пар код-URL в базу данных в рамках одной транзакции
-func (ds *DatabaseStore) WriteBatch(urls map[model.Code]model.URL) error {
+// WriteBatch сохраняет несколько пар код-URL с userID в базу данных в рамках одной транзакции
+func (ds *DatabaseStore) WriteBatch(urls map[model.Code]model.URL, userID string) error {
 	ctx := context.Background()
 
 	// Начинаем транзакцию
@@ -136,12 +143,12 @@ func (ds *DatabaseStore) WriteBatch(urls map[model.Code]model.URL) error {
 
 	// Вставляем все записи
 	query := `
-		INSERT INTO urls (code, original_url)
-		VALUES ($1, $2)
+		INSERT INTO urls (code, original_url, user_id)
+		VALUES ($1, $2, $3)
 	`
 
 	for code, url := range urls {
-		_, err = tx.Exec(ctx, query, string(code), string(url))
+		_, err = tx.Exec(ctx, query, string(code), string(url), userID)
 		if err != nil {
 			return fmt.Errorf("failed to insert into database: %w", err)
 		}
@@ -157,17 +164,17 @@ func (ds *DatabaseStore) WriteBatch(urls map[model.Code]model.URL) error {
 
 // CreateOrGetURL создает новую запись или возвращает код существующей для данного URL
 // Использует CTE для атомарной проверки существования и вставки без изменения существующего кода
-func (ds *DatabaseStore) CreateOrGetURL(code model.Code, url model.URL) (model.Code, bool, error) {
+func (ds *DatabaseStore) CreateOrGetURL(code model.Code, url model.URL, userID string) (model.Code, bool, error) {
 	ctx := context.Background()
 
 	// Используем CTE для атомарной проверки существования URL и вставки
 	query := `
 		WITH existing_url AS (
-			SELECT code FROM urls WHERE original_url = $2
+			SELECT code FROM urls WHERE original_url = $2 AND user_id = $3
 		),
 		insert_result AS (
-			INSERT INTO urls (code, original_url)
-			SELECT $1, $2
+			INSERT INTO urls (code, original_url, user_id)
+			SELECT $1, $2, $3
 			WHERE NOT EXISTS (SELECT 1 FROM existing_url)
 			RETURNING code
 		)
@@ -186,14 +193,13 @@ func (ds *DatabaseStore) CreateOrGetURL(code model.Code, url model.URL) (model.C
 	var finalCode string
 	var created bool
 
-	err := ds.pool.QueryRow(ctx, query, string(code), string(url)).Scan(&finalCode, &created)
+	err := ds.pool.QueryRow(ctx, query, string(code), string(url), userID).Scan(&finalCode, &created)
 	if err != nil {
 		return "", false, fmt.Errorf("failed to create or get URL: %w", err)
 	}
 
 	return model.Code(finalCode), created, nil
 }
-
 
 // IsCodeUnique проверяет, свободен ли код в базе данных
 func (ds *DatabaseStore) IsCodeUnique(code model.Code) bool {
@@ -223,4 +229,92 @@ func (ds *DatabaseStore) GetCodeByURL(url model.URL) (model.Code, error) {
 	}
 
 	return model.Code(code), nil
+}
+
+// GetURLsByUserID возвращает все URL для указанного пользователя (исключая удалённые)
+func (ds *DatabaseStore) GetURLsByUserID(userID string, baseURL string) ([]model.UserURLResponse, error) {
+	ctx := context.Background()
+
+	query := `
+		SELECT code, original_url
+		FROM urls
+		WHERE user_id = $1 AND is_deleted = false
+		ORDER BY created_at DESC
+	`
+
+	rows, err := ds.pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query URLs by user ID: %w", err)
+	}
+	defer rows.Close()
+
+	var urls []model.UserURLResponse
+	for rows.Next() {
+		var code, originalURL string
+		if err := rows.Scan(&code, &originalURL); err != nil {
+			return nil, fmt.Errorf("failed to scan URL row: %w", err)
+		}
+
+		shortURL, err := url.JoinPath(baseURL, code)
+		if err != nil {
+			return nil, fmt.Errorf("failed to construct short URL: %w", err)
+		}
+
+		urls = append(urls, model.UserURLResponse{
+			ShortURL:    shortURL,
+			OriginalURL: originalURL,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over URL rows: %w", err)
+	}
+
+	return urls, nil
+}
+
+// IsURLOwnedByUser проверяет, принадлежит ли URL указанному пользователю
+func (ds *DatabaseStore) IsURLOwnedByUser(code model.Code, userID string) bool {
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM urls WHERE code = $1 AND user_id = $2 AND is_deleted = false)`
+	err := ds.pool.QueryRow(context.Background(), query, string(code), userID).Scan(&exists)
+	return err == nil && exists
+}
+
+// DeleteURLsBatch помечает несколько URL как удалённые для указанного пользователя
+// Выполняет batch update без дополнительной валидации (валидация должна происходить на более высоком уровне)
+func (ds *DatabaseStore) DeleteURLsBatch(codes []model.Code, userID string) error {
+	if len(codes) == 0 {
+		return nil
+	}
+
+	ctx := context.Background()
+	return ds.batchUpdateDeletedFlag(ctx, codes, userID, true)
+}
+
+// batchUpdateDeletedFlag выполняет batch update флага is_deleted
+func (ds *DatabaseStore) batchUpdateDeletedFlag(ctx context.Context, codes []model.Code, userID string, isDeleted bool) error {
+	if len(codes) == 0 {
+		return nil
+	}
+
+	// Создаем placeholders для IN запроса
+	placeholders := make([]string, len(codes))
+	args := make([]interface{}, len(codes)+2)
+
+	for i, code := range codes {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = string(code)
+	}
+	args[len(codes)] = userID
+	args[len(codes)+1] = isDeleted
+
+	query := fmt.Sprintf(`
+		UPDATE urls
+		SET is_deleted = $%d
+		WHERE code IN (%s) AND user_id = $%d
+	`, len(codes)+2, strings.Join(placeholders, ","), len(codes)+1)
+
+	_, err := ds.pool.Exec(ctx, query, args...)
+	return err
 }
