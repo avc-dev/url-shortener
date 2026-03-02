@@ -23,5 +23,3 @@ func (e URLAlreadyExistsError) Error() string {
 func (e URLAlreadyExistsError) ExistingCode() string {
 	return e.Code
 }
-
-
