@@ -59,6 +59,7 @@ func ExampleHandler_CreateURL() {
 	h.CreateURL(w, req)
 
 	res := w.Result()
+	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
 
 	fmt.Println(res.StatusCode)
@@ -85,6 +86,7 @@ func ExampleHandler_CreateURLJSON() {
 	h.CreateURLJSON(w, req)
 
 	res := w.Result()
+	defer res.Body.Close()
 	var resp handler.ShortenResponse
 	json.NewDecoder(res.Body).Decode(&resp)
 
@@ -142,6 +144,7 @@ func ExampleHandler_CreateURLBatch() {
 	h.CreateURLBatch(w, req)
 
 	res := w.Result()
+	defer res.Body.Close()
 	var responses []model.BatchShortenResponse
 	json.NewDecoder(res.Body).Decode(&responses)
 
@@ -178,6 +181,7 @@ func ExampleHandler_GetURL() {
 	h.GetURL(getW, getReq)
 
 	res := getW.Result()
+	defer res.Body.Close()
 	fmt.Println(res.StatusCode)
 	fmt.Println(res.Header.Get("Location"))
 	// Output:
@@ -221,6 +225,7 @@ func ExampleHandler_GetUserURLs() {
 	h.GetUserURLs(listW, listReq)
 
 	res := listW.Result()
+	defer res.Body.Close()
 	var urls []model.UserURLResponse
 	json.NewDecoder(res.Body).Decode(&urls)
 
