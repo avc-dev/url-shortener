@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/avc-dev/url-shortener/internal/model"
@@ -23,8 +23,9 @@ type URLMap = map[model.Code]model.URL
 
 type Store struct {
 	store      URLMap
-	userMap    map[model.Code]string // code -> userID mapping
-	deletedMap map[model.Code]bool   // code -> is_deleted mapping
+	userMap    map[model.Code]string    // code -> userID mapping
+	deletedMap map[model.Code]bool      // code -> is_deleted mapping
+	urlIndex   map[model.URL]model.Code // reverse index: url -> code (O(1) lookup)
 	mutex      sync.Mutex
 }
 
@@ -33,6 +34,7 @@ func NewStore() *Store {
 		store:      make(URLMap),
 		userMap:    make(map[model.Code]string),
 		deletedMap: make(map[model.Code]bool),
+		urlIndex:   make(map[model.URL]model.Code),
 		mutex:      sync.Mutex{},
 	}
 }
@@ -67,6 +69,7 @@ func (s *Store) Write(key model.Code, value model.URL, userID string) error {
 	s.store[key] = value
 	s.userMap[key] = userID
 	s.deletedMap[key] = false
+	s.urlIndex[value] = key
 
 	return nil
 }
@@ -81,6 +84,10 @@ func (s *Store) InitializeWith(data URLMap, userData map[model.Code]string, dele
 	maps.Copy(s.userMap, userData)
 	if deletedData != nil {
 		maps.Copy(s.deletedMap, deletedData)
+	}
+	// Перестраиваем обратный индекс из загруженных данных
+	for code, url := range data {
+		s.urlIndex[url] = code
 	}
 }
 
@@ -101,23 +108,23 @@ func (s *Store) WriteBatch(urls URLMap, userID string) error {
 		s.store[code] = url
 		s.userMap[code] = userID
 		s.deletedMap[code] = false
+		s.urlIndex[url] = code
 	}
 
 	return nil
 }
 
-// CreateOrGetURL создает новую запись или возвращает код существующей для данного URL
+// CreateOrGetURL создает новую запись или возвращает код существующей для данного URL.
+// Использует обратный индекс urlIndex для O(1) поиска дубликата вместо O(n) перебора.
 func (s *Store) CreateOrGetURL(code model.Code, url model.URL, userID string) (model.Code, bool, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Проверяем, существует ли уже такой URL
-	for existingCode, existingURL := range s.store {
-		if existingURL == url {
-			// Обновляем userID для существующего кода
-			s.userMap[existingCode] = userID
-			return existingCode, false, nil // false = не создана новая запись
-		}
+	// O(1) проверка через обратный индекс
+	if existingCode, found := s.urlIndex[url]; found {
+		// Обновляем userID для существующего кода
+		s.userMap[existingCode] = userID
+		return existingCode, false, nil // false = не создана новая запись
 	}
 
 	// Проверяем, свободен ли код
@@ -129,6 +136,7 @@ func (s *Store) CreateOrGetURL(code model.Code, url model.URL, userID string) (m
 	s.store[code] = url
 	s.userMap[code] = userID
 	s.deletedMap[code] = false
+	s.urlIndex[url] = code
 	return code, true, nil // true = создана новая запись
 }
 
@@ -141,26 +149,38 @@ func (s *Store) IsCodeUnique(code model.Code) bool {
 	return !exists
 }
 
-// GetCodeByURL возвращает код для существующего URL
+// GetCodeByURL возвращает код для существующего URL.
+// O(1) поиск через обратный индекс urlIndex.
 func (s *Store) GetCodeByURL(url model.URL) (model.Code, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	for code, existingURL := range s.store {
-		if existingURL == url {
-			return code, nil
-		}
+	if code, found := s.urlIndex[url]; found {
+		return code, nil
 	}
 
 	return "", fmt.Errorf("URL not found: %w", ErrNotFound)
 }
 
-// GetURLsByUserID возвращает URL пользователя (исключая удалённые)
+// GetURLsByUserID возвращает URL пользователя (исключая удалённые).
+// Вместо url.JoinPath (≥3 аллокации/вызов) использует простую конкатенацию строк (1 аллокация).
+// Результирующий срез предварительно выделяется под максимально возможный размер.
 func (s *Store) GetURLsByUserID(userID string, baseURL string) ([]model.UserURLResponse, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	var urls []model.UserURLResponse
+	// Нормализуем baseURL один раз перед циклом
+	base := strings.TrimRight(baseURL, "/") + "/"
+
+	// Считаем количество активных URL пользователя для предварительного выделения среза
+	count := 0
+	for code, storedUserID := range s.userMap {
+		if storedUserID == userID && !s.deletedMap[code] {
+			count++
+		}
+	}
+
+	urls := make([]model.UserURLResponse, 0, count)
 
 	for code, storedUserID := range s.userMap {
 		if storedUserID == userID {
@@ -175,14 +195,9 @@ func (s *Store) GetURLsByUserID(userID string, baseURL string) ([]model.UserURLR
 				continue // Несогласованность данных, пропускаем
 			}
 
-			// Формируем полный короткий URL
-			shortURL, err := url.JoinPath(baseURL, string(code))
-			if err != nil {
-				continue // Пропускаем если не удалось сформировать URL
-			}
-
+			// Формируем полный короткий URL: одна аллокация вместо ≥3 у url.JoinPath
 			urls = append(urls, model.UserURLResponse{
-				ShortURL:    shortURL,
+				ShortURL:    base + string(code),
 				OriginalURL: string(originalURL),
 			})
 		}

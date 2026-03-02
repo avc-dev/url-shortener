@@ -73,11 +73,14 @@ func (s *URLService) generateUniqueCodeForBatch(usedInBatch map[model.Code]bool)
 	return "", fmt.Errorf("failed to generate unique code for batch after %d attempts: %w", s.cfg.Retry.MaxAttempts, ErrMaxRetriesExceeded)
 }
 
-// CreateShortURLsBatch создает короткие URL для нескольких оригинальных URL
-// Генерирует уникальные коды для каждого URL и сохраняет их в одной транзакции
+// CreateShortURLsBatch создает короткие URL для нескольких оригинальных URL.
+// Генерирует уникальные коды для каждого URL и сохраняет их в одной транзакции.
+// Использует обратную карту codeForURL для O(n) восстановления порядка
+// вместо O(n²) двойного перебора.
 func (s *URLService) CreateShortURLsBatch(originalURLs []model.URL, userID string) ([]model.Code, error) {
-	urlMap := make(map[model.Code]model.URL)
-	usedCodes := make(map[model.Code]bool)
+	urlMap := make(map[model.Code]model.URL, len(originalURLs))
+	codeForURL := make(map[model.URL]model.Code, len(originalURLs))
+	usedCodes := make(map[model.Code]bool, len(originalURLs))
 
 	// Генерируем уникальные коды для каждого URL
 	for _, url := range originalURLs {
@@ -86,6 +89,7 @@ func (s *URLService) CreateShortURLsBatch(originalURLs []model.URL, userID strin
 			return nil, fmt.Errorf("failed to generate unique code for batch: %w", err)
 		}
 		urlMap[code] = url
+		codeForURL[url] = code
 		usedCodes[code] = true
 	}
 
@@ -95,15 +99,10 @@ func (s *URLService) CreateShortURLsBatch(originalURLs []model.URL, userID strin
 		return nil, fmt.Errorf("failed to create URLs batch: %w", err)
 	}
 
-	// Возвращаем коды в том же порядке, что и входные URL
+	// Возвращаем коды в том же порядке, что и входные URL: O(n) вместо O(n²)
 	codes := make([]model.Code, len(originalURLs))
 	for i, url := range originalURLs {
-		for code, mappedURL := range urlMap {
-			if mappedURL == url {
-				codes[i] = code
-				break
-			}
-		}
+		codes[i] = codeForURL[url]
 	}
 
 	return codes, nil

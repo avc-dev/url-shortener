@@ -37,13 +37,15 @@ func (g *CodeGenerator) GenerateBatchCodes(count int) []model.Code {
 	return codes
 }
 
-// generateRandomString генерирует случайную строку заданной длины
+// generateRandomString генерирует случайную строку заданной длины.
+// Использует массив фиксированного размера на стеке вместо make([]byte),
+// чтобы гарантировать стековое размещение буфера.
 func (g *CodeGenerator) generateRandomString() string {
-	result := make([]byte, CodeLength)
+	var result [CodeLength]byte
 
 	for i := range result {
 		result[i] = AllowedChars[g.random.Intn(len(AllowedChars))]
 	}
 
-	return string(result)
+	return string(result[:])
 }
