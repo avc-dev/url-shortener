@@ -8,11 +8,15 @@ import (
 	"go.uber.org/zap"
 )
 
+// ShortenRequest — тело POST-запроса к /api/shorten.
 type ShortenRequest struct {
+	// URL — оригинальный URL, который нужно сократить.
 	URL string `json:"url"`
 }
 
+// ShortenResponse — тело ответа на успешный POST /api/shorten.
 type ShortenResponse struct {
+	// Result — полный короткий URL (например, "http://localhost:8080/AbCdEfGh").
 	Result string `json:"result"`
 }
 

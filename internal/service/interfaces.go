@@ -1,3 +1,4 @@
+// Package service реализует доменные сервисы: генерацию кодов, работу с URL и аутентификацию.
 package service
 
 import (
