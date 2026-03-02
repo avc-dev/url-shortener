@@ -17,6 +17,8 @@ type Config struct {
 	FileStoragePath string         `env:"FILE_STORAGE_PATH"`
 	DatabaseDSN     string         `env:"DATABASE_DSN"`
 	JWTSecret       string         `env:"JWT_SECRET" envDefault:"your-secret-key"`
+	AuditFile       string         `env:"AUDIT_FILE"`
+	AuditURL        string         `env:"AUDIT_URL"`
 	Retry           RetryConfig    `envPrefix:"RETRY_"`
 }
 
@@ -43,6 +45,8 @@ func Load() (*Config, error) {
 	databaseDSNFlag := flag.String("d", "", "database DSN")
 	jwtSecretFlag := flag.String("j", "", "JWT secret key")
 	maxAttemptsFlag := flag.Int("r", 0, "maximum attempts for code generation")
+	auditFileFlag := flag.String("audit-file", "", "path to audit log file")
+	auditURLFlag := flag.String("audit-url", "", "URL of remote audit server")
 	flag.Parse()
 
 	if *addrFlag != "" {
@@ -66,6 +70,12 @@ func Load() (*Config, error) {
 	}
 	if *maxAttemptsFlag > 0 {
 		cfg.Retry.MaxAttempts = *maxAttemptsFlag
+	}
+	if *auditFileFlag != "" {
+		cfg.AuditFile = *auditFileFlag
+	}
+	if *auditURLFlag != "" {
+		cfg.AuditURL = *auditURLFlag
 	}
 
 	if err := env.Parse(cfg); err != nil {

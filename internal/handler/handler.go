@@ -1,16 +1,23 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 
+	"github.com/avc-dev/url-shortener/internal/audit"
 	"github.com/avc-dev/url-shortener/internal/config/db"
 	"github.com/avc-dev/url-shortener/internal/middleware"
 	"github.com/avc-dev/url-shortener/internal/model"
 	"github.com/avc-dev/url-shortener/internal/usecase"
 	"go.uber.org/zap"
 )
+
+// Auditor определяет интерфейс системы аудита (паттерн «Наблюдатель»)
+type Auditor interface {
+	Notify(ctx context.Context, event audit.Event)
+}
 
 // URLUsecase определяет интерфейс для бизнес-логики работы с URL
 type URLUsecase interface {
@@ -23,17 +30,31 @@ type URLUsecase interface {
 
 // Handler обрабатывает HTTP запросы
 type Handler struct {
-	usecase URLUsecase
-	logger  *zap.Logger
-	dbPool  db.Database
+	usecase  URLUsecase
+	logger   *zap.Logger
+	dbPool   db.Database
+	auditors []Auditor
 }
 
-// New создает новый экземпляр Handler
-func New(usecase URLUsecase, logger *zap.Logger, dbPool db.Database) *Handler {
+// New создает новый экземпляр Handler.
+// Параметры auditors опциональны: все переданные аудиторы получат уведомление о каждом событии.
+func New(usecase URLUsecase, logger *zap.Logger, dbPool db.Database, auditors ...Auditor) *Handler {
 	return &Handler{
-		usecase: usecase,
-		logger:  logger,
-		dbPool:  dbPool,
+		usecase:  usecase,
+		logger:   logger,
+		dbPool:   dbPool,
+		auditors: auditors,
+	}
+}
+
+// emitAudit уведомляет всех зарегистрированных аудиторов о событии
+func (h *Handler) emitAudit(r *http.Request, action, userID, url string) {
+	if len(h.auditors) == 0 {
+		return
+	}
+	event := audit.NewEvent(action, userID, url)
+	for _, a := range h.auditors {
+		a.Notify(r.Context(), event)
 	}
 }
 
