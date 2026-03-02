@@ -117,7 +117,7 @@ func TestCreateURL_EmitsAuditShortenEvent(t *testing.T) {
 	assert.Equal(t, audit.ActionShorten, events[0].Action)
 	assert.Equal(t, "https://example.com/original", events[0].URL)
 	assert.Empty(t, events[0].UserID)
-	assert.Greater(t, events[0].Ts, int64(0))
+	assert.Greater(t, events[0].TS, int64(0))
 }
 
 func TestCreateURL_Error_DoesNotEmitAuditEvent(t *testing.T) {

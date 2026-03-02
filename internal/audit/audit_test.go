@@ -51,7 +51,7 @@ func TestNewEvent_FieldsAndTimestamp(t *testing.T) {
 	assert.Equal(t, audit.ActionShorten, event.Action)
 	assert.Equal(t, "user42", event.UserID)
 	assert.Equal(t, "https://example.com/long", event.URL)
-	assert.Greater(t, event.Ts, int64(0))
+	assert.Greater(t, event.TS, int64(0))
 }
 
 func TestNewEvent_EmptyUserID(t *testing.T) {

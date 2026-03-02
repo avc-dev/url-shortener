@@ -36,7 +36,7 @@ func TestRemoteObserver_Notify_SendsPostWithJSON(t *testing.T) {
 	assert.Equal(t, event.Action, received.Action)
 	assert.Equal(t, event.UserID, received.UserID)
 	assert.Equal(t, event.URL, received.URL)
-	assert.Equal(t, event.Ts, received.Ts)
+	assert.Equal(t, event.TS, received.TS)
 }
 
 func TestRemoteObserver_Notify_OmitsEmptyUserID(t *testing.T) {

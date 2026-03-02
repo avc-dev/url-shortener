@@ -30,7 +30,7 @@ func TestFileObserver_Notify_CreatesFileAndWritesJSON(t *testing.T) {
 	assert.Equal(t, event.Action, got.Action)
 	assert.Equal(t, event.UserID, got.UserID)
 	assert.Equal(t, event.URL, got.URL)
-	assert.Equal(t, event.Ts, got.Ts)
+	assert.Equal(t, event.TS, got.TS)
 }
 
 func TestFileObserver_Notify_AppendsNewLine(t *testing.T) {

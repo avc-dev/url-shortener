@@ -18,7 +18,7 @@ const (
 
 // Event представляет событие аудита.
 type Event struct {
-	Ts     int64  `json:"ts"`
+	TS     int64  `json:"ts"`
 	Action string `json:"action"`
 	UserID string `json:"user_id,omitempty"`
 	URL    string `json:"url"`
@@ -27,7 +27,7 @@ type Event struct {
 // NewEvent создаёт событие аудита с текущим unix-временем.
 func NewEvent(action, userID, url string) Event {
 	return Event{
-		Ts:     time.Now().Unix(),
+		TS:     time.Now().Unix(),
 		Action: action,
 		UserID: userID,
 		URL:    url,
