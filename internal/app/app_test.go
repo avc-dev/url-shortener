@@ -3,7 +3,9 @@ package app
 import (
 	"testing"
 
+	"github.com/avc-dev/url-shortener/internal/audit"
 	"github.com/avc-dev/url-shortener/internal/mocks"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
 
@@ -32,7 +34,29 @@ func TestApp_Close(t *testing.T) {
 
 		// Act - should not panic
 		app.Close()
+	})
 
-		// Assert - no assertions needed, just ensure no panic
+	t.Run("audit subject is closed before db", func(t *testing.T) {
+		// Проверяем, что Close() вызывает auditSubject.Close() и не паникует.
+		subject := audit.NewSubject(zap.NewNop())
+		mockDB := mocks.NewMockDatabase(t)
+		mockDB.EXPECT().Close().Once()
+
+		app := &App{
+			logger:       zap.NewNop(),
+			dbPool:       mockDB,
+			auditSubject: subject,
+		}
+
+		assert.NotPanics(t, app.Close)
+		mockDB.AssertExpectations(t)
+	})
+
+	t.Run("nil audit subject is safe", func(t *testing.T) {
+		app := &App{
+			logger:       zap.NewNop(),
+			auditSubject: nil,
+		}
+		assert.NotPanics(t, app.Close)
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/avc-dev/url-shortener/internal/audit"
 	"go.uber.org/zap"
 )
 
@@ -35,6 +36,8 @@ func (h *Handler) CreateURLJSON(w http.ResponseWriter, req *http.Request) {
 		h.handleErrorJSON(w, err)
 		return
 	}
+
+	h.emitAudit(req, audit.ActionShorten, userID, request.URL)
 
 	response := ShortenResponse{
 		Result: shortURL,

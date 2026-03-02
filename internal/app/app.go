@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/avc-dev/url-shortener/internal/audit"
 	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/config/db"
 	"github.com/avc-dev/url-shortener/internal/handler"
@@ -10,11 +11,12 @@ import (
 
 // App представляет приложение URL shortener
 type App struct {
-	config      *config.Config
-	logger      *zap.Logger
-	handler     *handler.Handler
-	dbPool      db.Database
-	authService *service.AuthService
+	config       *config.Config
+	logger       *zap.Logger
+	handler      *handler.Handler
+	dbPool       db.Database
+	authService  *service.AuthService
+	auditSubject *audit.Subject
 }
 
 // New создает новый экземпляр приложения
@@ -29,18 +31,19 @@ func New() (*App, error) {
 		return nil, err
 	}
 
-	h, dbPool, authService, err := initDependencies(cfg, logger)
+	h, dbPool, authService, auditSubject, err := initDependencies(cfg, logger)
 	if err != nil {
 		logger.Sync()
 		return nil, err
 	}
 
 	return &App{
-		config:      cfg,
-		logger:      logger,
-		handler:     h,
-		dbPool:      dbPool,
-		authService: authService,
+		config:       cfg,
+		logger:       logger,
+		handler:      h,
+		dbPool:       dbPool,
+		authService:  authService,
+		auditSubject: auditSubject,
 	}, nil
 }
 
@@ -56,8 +59,12 @@ func Run() error {
 	return app.start()
 }
 
-// Close закрывает ресурсы приложения
+// Close закрывает ресурсы приложения.
+// Сначала ожидает завершения всех горутин аудита, затем закрывает БД.
 func (a *App) Close() {
+	if a.auditSubject != nil {
+		a.auditSubject.Close()
+	}
 	if a.dbPool != nil {
 		a.dbPool.Close()
 		a.logger.Info("Database connection pool closed")

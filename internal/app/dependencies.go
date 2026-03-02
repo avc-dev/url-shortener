@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/avc-dev/url-shortener/internal/audit"
 	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/config/db"
 	"github.com/avc-dev/url-shortener/internal/handler"
@@ -16,13 +17,13 @@ import (
 )
 
 // initDependencies инициализирует все зависимости приложения
-func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler, db.Database, *service.AuthService, error) {
+func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler, db.Database, *service.AuthService, *audit.Subject, error) {
 	var dbPool db.Database
 	if cfg.DatabaseDSN != "" {
 		var err error
 		dbPool, err = initDatabase(cfg, logger)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to initialize database: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("failed to initialize database: %w", err)
 		}
 	}
 
@@ -31,16 +32,44 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 		if dbPool != nil {
 			dbPool.Close()
 		}
-		return nil, nil, nil, fmt.Errorf("failed to initialize storage: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
 	repo := repository.New(storage)
 	urlService := service.NewURLService(repo, cfg)
 	authService := service.NewAuthService(cfg.JWTSecret)
 	urlUsecase := usecase.NewURLUsecase(repo, urlService, cfg, logger)
-	h := handler.New(urlUsecase, logger, dbPool)
 
-	return h, dbPool, authService, nil
+	auditSubject := initAudit(cfg, logger)
+
+	// Передаём Subject в Handler только если он не nil, чтобы избежать
+	// typed-nil внутри интерфейса handler.Auditor.
+	var handlerOpts []handler.Auditor
+	if auditSubject != nil {
+		handlerOpts = append(handlerOpts, auditSubject)
+	}
+	h := handler.New(urlUsecase, logger, dbPool, handlerOpts...)
+
+	return h, dbPool, authService, auditSubject, nil
+}
+
+// initAudit создаёт Subject с наблюдателями на основе конфигурации.
+// Возвращает nil, если ни один приёмник аудита не настроен.
+func initAudit(cfg *config.Config, logger *zap.Logger) *audit.Subject {
+	if cfg.AuditFile == "" && cfg.AuditURL == "" {
+		return nil
+	}
+
+	subject := audit.NewSubject(logger)
+	if cfg.AuditFile != "" {
+		subject.Register(audit.NewFileObserver(cfg.AuditFile))
+		logger.Info("Audit file sink enabled", zap.String("path", cfg.AuditFile))
+	}
+	if cfg.AuditURL != "" {
+		subject.Register(audit.NewRemoteObserver(cfg.AuditURL))
+		logger.Info("Audit remote sink enabled", zap.String("url", cfg.AuditURL))
+	}
+	return subject
 }
 
 // initDatabase инициализирует подключение к базе данных и применяет миграции
