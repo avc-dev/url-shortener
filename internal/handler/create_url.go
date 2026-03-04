@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/avc-dev/url-shortener/internal/audit"
 	"go.uber.org/zap"
 )
 
@@ -22,11 +23,14 @@ func (h *Handler) CreateURL(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	shortURL, err := h.usecase.CreateShortURLFromString(string(body), userID)
+	originalURL := string(body)
+	shortURL, err := h.usecase.CreateShortURLFromString(originalURL, userID)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
+
+	h.emitAudit(req, audit.ActionShorten, userID, originalURL)
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)

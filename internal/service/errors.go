@@ -7,4 +7,3 @@ var (
 	// после максимального количества попыток
 	ErrMaxRetriesExceeded = errors.New("max retries exceeded for code generation")
 )
-

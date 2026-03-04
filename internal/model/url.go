@@ -1,9 +1,13 @@
+// Package model определяет доменные типы и структуры данных URL-сокращателя.
 package model
 
+// Code — тип короткого кода, идентифицирующего оригинальный URL в хранилище.
 type Code string
 
+// URL — тип оригинального URL, для которого создаётся короткая ссылка.
 type URL string
 
+// String возвращает строковое представление URL.
 func (U URL) String() string {
 	return string(U)
 }

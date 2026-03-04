@@ -1,3 +1,5 @@
+// Package middleware содержит HTTP-миддлвары: аутентификацию (JWT/cookie),
+// логирование запросов и gzip-компрессию ответов.
 package middleware
 
 import (

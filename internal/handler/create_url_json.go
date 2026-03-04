@@ -4,14 +4,19 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/avc-dev/url-shortener/internal/audit"
 	"go.uber.org/zap"
 )
 
+// ShortenRequest — тело POST-запроса к /api/shorten.
 type ShortenRequest struct {
+	// URL — оригинальный URL, который нужно сократить.
 	URL string `json:"url"`
 }
 
+// ShortenResponse — тело ответа на успешный POST /api/shorten.
 type ShortenResponse struct {
+	// Result — полный короткий URL (например, "http://localhost:8080/AbCdEfGh").
 	Result string `json:"result"`
 }
 
@@ -35,6 +40,8 @@ func (h *Handler) CreateURLJSON(w http.ResponseWriter, req *http.Request) {
 		h.handleErrorJSON(w, err)
 		return
 	}
+
+	h.emitAudit(req, audit.ActionShorten, userID, request.URL)
 
 	response := ShortenResponse{
 		Result: shortURL,
