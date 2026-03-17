@@ -19,8 +19,8 @@ func TestGetURL_Success(t *testing.T) {
 		name             string
 		code             string
 		expectedURL      string
-		expectedStatus   int
 		expectedRedirect string
+		expectedStatus   int
 	}{
 		{
 			name:             "Valid short code",
@@ -234,10 +234,10 @@ func TestGetURL_CodeExtraction(t *testing.T) {
 // TestGetURL_BoundaryConditions проверяет граничные условия
 func TestGetURL_BoundaryConditions(t *testing.T) {
 	tests := []struct {
+		returnError    error
 		name           string
 		code           string
 		returnURL      string
-		returnError    error
 		expectedStatus int
 	}{
 		{

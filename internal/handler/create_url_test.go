@@ -101,8 +101,8 @@ func TestCreateURL_ReadBodyError(t *testing.T) {
 // TestCreateURL_ErrorMapping проверяет маппинг ошибок usecase на HTTP статусы
 func TestCreateURL_ErrorMapping(t *testing.T) {
 	tests := []struct {
-		name               string
 		usecaseError       error
+		name               string
 		expectedHTTPStatus int
 	}{
 		{

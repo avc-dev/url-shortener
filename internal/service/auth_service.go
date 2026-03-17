@@ -67,9 +67,9 @@ func (a *AuthService) GetOrCreateUserFromCookie(r *http.Request, w http.Response
 	if err != nil || cookie.Value == "" {
 		// Куки нет или пустая, создаем нового пользователя
 		userID := a.GenerateUserID()
-		token, err := a.GenerateJWT(userID)
-		if err != nil {
-			return "", fmt.Errorf("failed to generate JWT: %w", err)
+		token, jwtErr := a.GenerateJWT(userID)
+		if jwtErr != nil {
+			return "", fmt.Errorf("failed to generate JWT: %w", jwtErr)
 		}
 
 		// Устанавливаем куку
@@ -90,10 +90,10 @@ func (a *AuthService) GetOrCreateUserFromCookie(r *http.Request, w http.Response
 	userID, err := a.ValidateJWT(cookie.Value)
 	if err != nil {
 		// Токен недействителен, создаем нового пользователя
-		userID := a.GenerateUserID()
-		token, err := a.GenerateJWT(userID)
-		if err != nil {
-			return "", fmt.Errorf("failed to generate JWT: %w", err)
+		newUserID := a.GenerateUserID()
+		token, jwtErr := a.GenerateJWT(newUserID)
+		if jwtErr != nil {
+			return "", fmt.Errorf("failed to generate JWT: %w", jwtErr)
 		}
 
 		// Обновляем куку
@@ -107,7 +107,7 @@ func (a *AuthService) GetOrCreateUserFromCookie(r *http.Request, w http.Response
 			MaxAge:   86400,
 		})
 
-		return userID, nil
+		return newUserID, nil
 	}
 
 	return userID, nil

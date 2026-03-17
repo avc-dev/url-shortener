@@ -20,8 +20,8 @@ import (
 
 // testAuditor — синхронный Auditor-stub для проверки событий в handler-тестах
 type testAuditor struct {
-	mu     sync.Mutex
 	events []audit.Event
+	mu     sync.Mutex
 }
 
 func (a *testAuditor) Notify(_ context.Context, event audit.Event) {

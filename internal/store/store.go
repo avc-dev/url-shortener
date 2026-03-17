@@ -1,3 +1,5 @@
+// Package store реализует хранилища для коротких URL:
+// in-memory, файловое и PostgreSQL.
 package store
 
 import (

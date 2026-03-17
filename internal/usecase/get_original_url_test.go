@@ -77,9 +77,9 @@ func TestGetOriginalURL_Success(t *testing.T) {
 
 func TestGetOriginalURL_NotFound(t *testing.T) {
 	tests := []struct {
+		repoError error
 		name      string
 		code      string
-		repoError error
 	}{
 		{
 			name:      "Code not found",

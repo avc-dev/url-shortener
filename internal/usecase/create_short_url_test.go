@@ -234,8 +234,8 @@ func TestCreateShortURLFromString_InvalidURL(t *testing.T) {
 
 func TestCreateShortURLFromString_ServiceError(t *testing.T) {
 	tests := []struct {
-		name         string
 		serviceError error
+		name         string
 	}{
 		{
 			name:         "Database error",

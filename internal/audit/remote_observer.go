@@ -12,8 +12,8 @@ import (
 
 // RemoteObserver отправляет события аудита на удалённый сервер методом POST.
 type RemoteObserver struct {
-	url    string
 	client *http.Client
+	url    string
 }
 
 // NewRemoteObserver создаёт RemoteObserver с таймаутом 5 секунд.

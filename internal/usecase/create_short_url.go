@@ -45,16 +45,16 @@ func (u *URLUsecase) CreateShortURLFromString(urlString string, userID string) (
 
 	if !created {
 		// URL уже существует для этого пользователя - возвращаем ошибку конфликта
-		shortURL, err := url.JoinPath(u.cfg.BaseURL.String(), string(code))
-		if err != nil {
+		existingURL, joinErr := url.JoinPath(u.cfg.BaseURL.String(), string(code))
+		if joinErr != nil {
 			u.logger.Error("failed to build short URL",
 				zap.String("base_url", u.cfg.BaseURL.String()),
 				zap.String("code", string(code)),
-				zap.Error(err),
+				zap.Error(joinErr),
 			)
-			return "", fmt.Errorf("%w: failed to build short URL: %w", ErrServiceUnavailable, err)
+			return "", fmt.Errorf("%w: failed to build short URL: %w", ErrServiceUnavailable, joinErr)
 		}
-		return "", URLAlreadyExistsError{Code: shortURL}
+		return "", URLAlreadyExistsError{Code: existingURL}
 	}
 
 	shortURL, err := url.JoinPath(u.cfg.BaseURL.String(), string(code))

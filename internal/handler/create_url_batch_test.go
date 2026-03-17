@@ -22,9 +22,9 @@ func TestCreateURLBatch(t *testing.T) {
 	handler := New(mockUsecase, logger, mockDB)
 
 	tests := []struct {
-		name           string
 		requestBody    interface{}
 		mockSetup      func()
+		name           string
 		expectedStatus int
 		expectedBody   bool
 	}{

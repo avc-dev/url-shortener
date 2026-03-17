@@ -111,8 +111,8 @@ func TestCreateURLJSON_InvalidJSON(t *testing.T) {
 // TestCreateURLJSON_ErrorMapping проверяет маппинг ошибок usecase на HTTP статусы
 func TestCreateURLJSON_ErrorMapping(t *testing.T) {
 	tests := []struct {
-		name               string
 		usecaseError       error
+		name               string
 		expectedHTTPStatus int
 	}{
 		{

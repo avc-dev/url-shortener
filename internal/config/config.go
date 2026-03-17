@@ -19,22 +19,14 @@ type RetryConfig struct {
 // Config содержит всю конфигурацию приложения.
 // Поля помечены тегами env для автоматической загрузки из переменных окружения.
 type Config struct {
-	// ServerAddress — адрес и порт HTTP-сервера (флаг -a / SERVER_ADDRESS).
-	ServerAddress NetworkAddress `env:"SERVER_ADDRESS"`
-	// BaseURL — базовый URL для формирования коротких ссылок (флаг -b / BASE_URL).
-	BaseURL URLPrefix `env:"BASE_URL"`
-	// FileStoragePath — путь к файлу для хранения данных (флаг -f / FILE_STORAGE_PATH).
-	FileStoragePath string `env:"FILE_STORAGE_PATH"`
-	// DatabaseDSN — строка подключения к PostgreSQL (флаг -d / DATABASE_DSN).
-	DatabaseDSN string `env:"DATABASE_DSN"`
-	// JWTSecret — секрет для подписи JWT-токенов (флаг -j / JWT_SECRET).
-	JWTSecret string `env:"JWT_SECRET" envDefault:"your-secret-key"`
-	// AuditFile — путь к файлу аудита (флаг --audit-file / AUDIT_FILE).
-	AuditFile string `env:"AUDIT_FILE"`
-	// AuditURL — URL удалённого сервера аудита (флаг --audit-url / AUDIT_URL).
-	AuditURL string `env:"AUDIT_URL"`
-	// Retry — конфигурация повторных попыток с префиксом RETRY_.
-	Retry RetryConfig `envPrefix:"RETRY_"`
+	BaseURL         URLPrefix      `env:"BASE_URL"`
+	FileStoragePath string         `env:"FILE_STORAGE_PATH"`
+	DatabaseDSN     string         `env:"DATABASE_DSN"`
+	JWTSecret       string         `env:"JWT_SECRET" envDefault:"your-secret-key"`
+	AuditFile       string         `env:"AUDIT_FILE"`
+	AuditURL        string         `env:"AUDIT_URL"`
+	ServerAddress   NetworkAddress `env:"SERVER_ADDRESS"`
+	Retry           RetryConfig    `envPrefix:"RETRY_"`
 }
 
 // NewDefaultConfig возвращает конфигурацию со значениями по умолчанию

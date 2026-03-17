@@ -18,10 +18,10 @@ const (
 
 // Event представляет событие аудита.
 type Event struct {
-	TS     int64  `json:"ts"`
 	Action string `json:"action"`
 	UserID string `json:"user_id,omitempty"`
 	URL    string `json:"url"`
+	TS     int64  `json:"ts"`
 }
 
 // NewEvent создаёт событие аудита с текущим unix-временем.
@@ -42,10 +42,10 @@ type Observer interface {
 // Subject хранит список Observer и асинхронно рассылает им события.
 // Безопасен для конкурентного использования.
 type Subject struct {
-	mu        sync.RWMutex
-	observers []Observer
 	logger    *zap.Logger
+	observers []Observer
 	wg        sync.WaitGroup
+	mu        sync.RWMutex
 }
 
 // NewSubject создаёт новый Subject.
