@@ -27,6 +27,7 @@ type Config struct {
 	AuditURL        string         `env:"AUDIT_URL"`
 	ServerAddress   NetworkAddress `env:"SERVER_ADDRESS"`
 	Retry           RetryConfig    `envPrefix:"RETRY_"`
+	EnableHTTPS     bool           `env:"ENABLE_HTTPS"`
 }
 
 // NewDefaultConfig возвращает конфигурацию со значениями по умолчанию
@@ -54,8 +55,12 @@ func Load() (*Config, error) {
 	maxAttemptsFlag := flag.Int("r", 0, "maximum attempts for code generation")
 	auditFileFlag := flag.String("audit-file", "", "path to audit log file")
 	auditURLFlag := flag.String("audit-url", "", "URL of remote audit server")
+	enableHTTPSFlag := flag.Bool("s", false, "enable HTTPS")
 	flag.Parse()
 
+	if *enableHTTPSFlag {
+		cfg.EnableHTTPS = true
+	}
 	if *addrFlag != "" {
 		if err := cfg.ServerAddress.Set(*addrFlag); err != nil {
 			return nil, fmt.Errorf("invalid server address flag: %w", err)
