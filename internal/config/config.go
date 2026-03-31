@@ -4,8 +4,10 @@
 package config
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -13,21 +15,22 @@ import (
 // RetryConfig хранит параметры повторных попыток генерации кода.
 type RetryConfig struct {
 	// MaxAttempts — максимальное число попыток генерации уникального короткого кода.
-	MaxAttempts int `env:"MAX_ATTEMPTS" envDefault:"100"`
+	MaxAttempts int `env:"MAX_ATTEMPTS" envDefault:"100" json:"retry_max_attempts"`
 }
 
 // Config содержит всю конфигурацию приложения.
-// Поля помечены тегами env для автоматической загрузки из переменных окружения.
+// Поля помечены тегами env для автоматической загрузки из переменных окружения
+// и тегами json для загрузки из файла конфигурации.
 type Config struct {
-	BaseURL         URLPrefix      `env:"BASE_URL"`
-	FileStoragePath string         `env:"FILE_STORAGE_PATH"`
-	DatabaseDSN     string         `env:"DATABASE_DSN"`
-	JWTSecret       string         `env:"JWT_SECRET" envDefault:"your-secret-key"`
-	AuditFile       string         `env:"AUDIT_FILE"`
-	AuditURL        string         `env:"AUDIT_URL"`
-	ServerAddress   NetworkAddress `env:"SERVER_ADDRESS"`
-	Retry           RetryConfig    `envPrefix:"RETRY_"`
-	EnableHTTPS     bool           `env:"ENABLE_HTTPS"`
+	BaseURL         URLPrefix      `env:"BASE_URL"           json:"base_url"`
+	FileStoragePath string         `env:"FILE_STORAGE_PATH"  json:"file_storage_path"`
+	DatabaseDSN     string         `env:"DATABASE_DSN"       json:"database_dsn"`
+	JWTSecret       string         `env:"JWT_SECRET" envDefault:"your-secret-key" json:"jwt_secret"`
+	AuditFile       string         `env:"AUDIT_FILE"         json:"audit_file"`
+	AuditURL        string         `env:"AUDIT_URL"          json:"audit_url"`
+	ServerAddress   NetworkAddress `env:"SERVER_ADDRESS"     json:"server_address"`
+	Retry           RetryConfig    `envPrefix:"RETRY_"       json:"retry"`
+	EnableHTTPS     bool           `env:"ENABLE_HTTPS"       json:"enable_https"`
 }
 
 // NewDefaultConfig возвращает конфигурацию со значениями по умолчанию
@@ -43,7 +46,8 @@ func NewDefaultConfig() *Config {
 // Load загружает конфигурацию с учётом приоритетов:
 // 1. ENV переменные (высший приоритет)
 // 2. Флаги командной строки
-// 3. Значения по умолчанию (низший приоритет)
+// 3. JSON-файл конфигурации (-c / -config / CONFIG)
+// 4. Значения по умолчанию (низший приоритет)
 func Load() (*Config, error) {
 	cfg := NewDefaultConfig()
 
@@ -56,8 +60,30 @@ func Load() (*Config, error) {
 	auditFileFlag := flag.String("audit-file", "", "path to audit log file")
 	auditURLFlag := flag.String("audit-url", "", "URL of remote audit server")
 	enableHTTPSFlag := flag.Bool("s", false, "enable HTTPS")
+	configFileFlag := flag.String("c", "", "path to JSON config file")
+	flag.StringVar(configFileFlag, "config", "", "path to JSON config file")
 	flag.Parse()
 
+	// Определяем путь к файлу конфигурации: CONFIG env > -c/-config флаг.
+	// os.Getenv используется намеренно — env.Parse() ещё не запускался.
+	configFilePath := os.Getenv("CONFIG")
+	if configFilePath == "" {
+		configFilePath = *configFileFlag
+	}
+
+	// Применяем JSON-файл конфигурации (низший приоритет после флагов и ENV).
+	// Десериализуем прямо в cfg: отсутствующие поля не трогают уже заданные дефолты.
+	if configFilePath != "" {
+		data, err := os.ReadFile(configFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
+		if err := json.Unmarshal(data, cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse config file: %w", err)
+		}
+	}
+
+	// Флаги переопределяют значения из файла конфигурации.
 	if *enableHTTPSFlag {
 		cfg.EnableHTTPS = true
 	}
@@ -90,6 +116,7 @@ func Load() (*Config, error) {
 		cfg.AuditURL = *auditURLFlag
 	}
 
+	// ENV переменные имеют высший приоритет.
 	if err := env.Parse(cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse environment variables: %w", err)
 	}
