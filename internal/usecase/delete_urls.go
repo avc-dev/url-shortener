@@ -14,7 +14,9 @@ func (u *URLUsecase) DeleteURLs(codes []string, userID string) error {
 		modelCodes[i] = model.Code(code)
 	}
 
-	// Выполняем асинхронное удаление с воркерами
+	// Выполняем асинхронное удаление с воркерами.
+	// wg отслеживает горутину, чтобы Close() мог дождаться завершения при shutdown.
+	u.wg.Add(1)
 	go u.deleteURLsAsync(modelCodes, userID, codes)
 
 	return nil
@@ -22,6 +24,7 @@ func (u *URLUsecase) DeleteURLs(codes []string, userID string) error {
 
 // deleteURLsAsync асинхронно удаляет URL с использованием воркеров и fanIn паттерна
 func (u *URLUsecase) deleteURLsAsync(codes []model.Code, userID string, originalCodes []string) {
+	defer u.wg.Done()
 	defer func() {
 		// Сигнализируем о завершении операции для тестов
 		if u.done != nil {

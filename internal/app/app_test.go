@@ -37,15 +37,15 @@ func TestApp_Close(t *testing.T) {
 	})
 
 	t.Run("audit subject is closed before db", func(t *testing.T) {
-		// Проверяем, что Close() вызывает auditSubject.Close() и не паникует.
+		// Проверяем, что Close() вызывает audit.Close() и не паникует.
 		subject := audit.NewSubject(zap.NewNop())
 		mockDB := mocks.NewMockDatabase(t)
 		mockDB.EXPECT().Close().Once()
 
 		app := &App{
-			logger:       zap.NewNop(),
-			dbPool:       mockDB,
-			auditSubject: subject,
+			logger: zap.NewNop(),
+			dbPool: mockDB,
+			audit:  subject,
 		}
 
 		assert.NotPanics(t, app.Close)
@@ -54,8 +54,8 @@ func TestApp_Close(t *testing.T) {
 
 	t.Run("nil audit subject is safe", func(t *testing.T) {
 		app := &App{
-			logger:       zap.NewNop(),
-			auditSubject: nil,
+			logger: zap.NewNop(),
+			audit:  nil,
 		}
 		assert.NotPanics(t, app.Close)
 	})

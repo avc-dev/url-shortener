@@ -4,6 +4,8 @@
 package usecase
 
 import (
+	"sync"
+
 	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/model"
 	svc "github.com/avc-dev/url-shortener/internal/service"
@@ -35,6 +37,7 @@ type URLUsecase struct {
 	cfg            *config.Config
 	logger         *zap.Logger
 	done           chan struct{} // канал для сигнализации завершения асинхронных операций (для тестов)
+	wg             sync.WaitGroup
 }
 
 // NewURLUsecase создает новый экземпляр URLUsecase
@@ -58,4 +61,10 @@ func NewURLUsecaseWithDone(repo URLRepository, service URLService, cfg *config.C
 		logger:         logger,
 		done:           done,
 	}
+}
+
+// Close ожидает завершения всех асинхронных операций удаления URL.
+// Вызывать при остановке приложения, до закрытия соединения с БД.
+func (u *URLUsecase) Close() {
+	u.wg.Wait()
 }
