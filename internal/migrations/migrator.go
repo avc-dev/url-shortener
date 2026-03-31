@@ -1,3 +1,4 @@
+// Package migrations управляет миграциями схемы базы данных PostgreSQL.
 package migrations
 
 import (

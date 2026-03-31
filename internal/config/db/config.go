@@ -1,3 +1,4 @@
+// Package db предоставляет конфигурацию и адаптер для подключения к PostgreSQL.
 package db
 
 import (
@@ -51,9 +52,9 @@ func (c *Config) Connect(ctx context.Context) (Database, error) {
 	sqlDB.SetConnMaxIdleTime(c.MaxConnIdleTime)
 
 	// Проверяем подключение
-	if err := sqlDB.PingContext(ctx); err != nil {
+	if pingErr := sqlDB.PingContext(ctx); pingErr != nil {
 		sqlDB.Close()
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		return nil, fmt.Errorf("failed to ping database: %w", pingErr)
 	}
 
 	config, err := pgxpool.ParseConfig(c.DSN)

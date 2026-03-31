@@ -18,8 +18,8 @@ import (
 
 // recordingObserver потокобезопасно накапливает полученные события.
 type recordingObserver struct {
-	mu     sync.Mutex
 	events []audit.Event
+	mu     sync.Mutex
 }
 
 func (r *recordingObserver) Notify(_ context.Context, event audit.Event) error {

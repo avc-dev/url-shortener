@@ -124,17 +124,17 @@ func (ds *DatabaseStore) WriteBatch(urls map[model.Code]model.URL, userID string
 			SELECT code FROM urls WHERE code IN (%s)
 		`, placeholders)
 
-		rows, err := tx.Query(ctx, query, args...)
-		if err != nil {
-			return fmt.Errorf("failed to check existing codes: %w", err)
+		rows, queryErr := tx.Query(ctx, query, args...)
+		if queryErr != nil {
+			return fmt.Errorf("failed to check existing codes: %w", queryErr)
 		}
 		defer rows.Close()
 
 		// Если найдены существующие коды, возвращаем ошибку
 		if rows.Next() {
 			var existingCode string
-			if err := rows.Scan(&existingCode); err != nil {
-				return fmt.Errorf("failed to scan existing code: %w", err)
+			if scanErr := rows.Scan(&existingCode); scanErr != nil {
+				return fmt.Errorf("failed to scan existing code: %w", scanErr)
 			}
 			return fmt.Errorf("code %s: %w", existingCode, ErrCodeAlreadyExists)
 		}
