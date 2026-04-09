@@ -18,33 +18,44 @@ import (
 	"go.uber.org/zap"
 )
 
-// prepare создаёт HTTP или HTTPS сервер и сохраняет его в App.
-// Для HTTPS дополнительно открывает TLS-listener и возвращает его.
-// Вызывается до запуска горутины, чтобы a.httpServer был доступен без гонки.
-func (a *App) prepare() (net.Listener, error) {
+// prepare создаёт HTTP/HTTPS и gRPC серверы, открывает слушателей и возвращает их.
+// TLS используется для обоих протоколов, если EnableHTTPS=true.
+func (a *App) prepare() (httpLn net.Listener, grpcLn net.Listener, err error) {
 	router := newRouter(a.handler, a.logger, a.authService, a.config.TrustedSubnet)
-	addr := a.config.ServerAddress.String()
+	httpAddr := a.config.ServerAddress.String()
+	grpcAddr := a.config.GRPCAddress.String()
 
 	if a.config.EnableHTTPS {
-		tlsCfg, err := buildSelfSignedTLSConfig()
-		if err != nil {
-			return nil, err
+		tlsCfg, tlsErr := buildSelfSignedTLSConfig()
+		if tlsErr != nil {
+			return nil, nil, tlsErr
 		}
-		ln, err := tls.Listen("tcp", addr, tlsCfg)
+
+		httpLn, err = tls.Listen("tcp", httpAddr, tlsCfg)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		a.httpServer = &http.Server{Handler: router}
-		return ln, nil
+
+		grpcLn, err = tls.Listen("tcp", grpcAddr, tlsCfg)
+		if err != nil {
+			httpLn.Close()
+			return nil, nil, err
+		}
+		return httpLn, grpcLn, nil
 	}
 
-	a.httpServer = &http.Server{Addr: addr, Handler: router}
-	return nil, nil
+	a.httpServer = &http.Server{Addr: httpAddr, Handler: router}
+
+	grpcLn, err = net.Listen("tcp", grpcAddr)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, grpcLn, nil
 }
 
-// serve запускает сервер и блокирует до его остановки.
-// Возвращает nil при штатном завершении через Shutdown.
-func (a *App) serve(ln net.Listener) error {
+// serveHTTP запускает HTTP-сервер и блокирует до его остановки.
+func (a *App) serveHTTP(ln net.Listener) error {
 	if ln != nil {
 		a.logger.Info("Starting HTTPS server", zap.String("address", ln.Addr().String()))
 		if err := a.httpServer.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
@@ -60,13 +71,53 @@ func (a *App) serve(ln net.Listener) error {
 	return nil
 }
 
-// shutdown выполняет graceful shutdown: прекращает приём новых запросов,
-// ждёт завершения всех активных запросов, затем возвращает управление.
-func (a *App) shutdown(ctx context.Context) error {
-	if a.httpServer == nil {
-		return nil
+// serveGRPC запускает gRPC-сервер и блокирует до его остановки.
+func (a *App) serveGRPC(ln net.Listener) error {
+	a.logger.Info("Starting gRPC server", zap.String("address", ln.Addr().String()))
+	if err := a.grpcServer.Serve(ln); err != nil {
+		return err
 	}
-	return a.httpServer.Shutdown(ctx)
+	return nil
+}
+
+// shutdown выполняет graceful shutdown обоих серверов параллельно.
+func (a *App) shutdown(ctx context.Context) error {
+	errCh := make(chan error, 2)
+
+	go func() {
+		if a.httpServer != nil {
+			errCh <- a.httpServer.Shutdown(ctx)
+		} else {
+			errCh <- nil
+		}
+	}()
+
+	go func() {
+		done := make(chan struct{})
+		go func() {
+			if a.grpcServer != nil {
+				a.grpcServer.GracefulStop()
+			}
+			close(done)
+		}()
+		select {
+		case <-ctx.Done():
+			if a.grpcServer != nil {
+				a.grpcServer.Stop()
+			}
+			errCh <- ctx.Err()
+		case <-done:
+			errCh <- nil
+		}
+	}()
+
+	var firstErr error
+	for range 2 {
+		if err := <-errCh; err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 // buildSelfSignedTLSConfig генерирует самоподписанный TLS-сертификат в памяти.

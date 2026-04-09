@@ -18,6 +18,7 @@ import (
 	"github.com/avc-dev/url-shortener/internal/service"
 	"github.com/avc-dev/url-shortener/internal/usecase"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 // App представляет приложение URL shortener
@@ -30,6 +31,7 @@ type App struct {
 	urlUsecase  *usecase.URLUsecase
 	audit       *audit.Subject
 	httpServer  *http.Server
+	grpcServer  *grpc.Server
 }
 
 // New создает новый экземпляр приложения
@@ -44,7 +46,7 @@ func New() (*App, error) {
 		return nil, err
 	}
 
-	h, dbPool, authService, auditSubject, urlUsecase, err := initDependencies(cfg, logger)
+	h, dbPool, authService, auditSubject, urlUsecase, grpcSrv, err := initDependencies(cfg, logger)
 	if err != nil {
 		logger.Sync()
 		return nil, err
@@ -58,12 +60,13 @@ func New() (*App, error) {
 		authService: authService,
 		urlUsecase:  urlUsecase,
 		audit:       auditSubject,
+		grpcServer:  grpcSrv,
 	}, nil
 }
 
 // Run — точка входа для запуска сервера из main.
-// Создаёт приложение, запускает сервер и обрабатывает сигналы SIGTERM/SIGINT/SIGQUIT
-// для graceful shutdown: ждёт завершения всех активных запросов, затем освобождает ресурсы.
+// Запускает HTTP и gRPC серверы параллельно, обрабатывает сигналы SIGTERM/SIGINT/SIGQUIT
+// для graceful shutdown.
 func Run() error {
 	app, err := New()
 	if err != nil {
@@ -71,7 +74,7 @@ func Run() error {
 	}
 	defer app.logger.Sync()
 
-	ln, err := app.prepare()
+	httpLn, grpcLn, err := app.prepare()
 	if err != nil {
 		app.Close()
 		return err
@@ -81,10 +84,9 @@ func Run() error {
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer signal.Stop(sigCh)
 
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- app.serve(ln)
-	}()
+	errCh := make(chan error, 2)
+	go func() { errCh <- app.serveHTTP(httpLn) }()
+	go func() { errCh <- app.serveGRPC(grpcLn) }()
 
 	select {
 	case sig := <-sigCh:

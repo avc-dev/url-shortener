@@ -30,6 +30,7 @@ type Config struct {
 	AuditURL        string         `env:"AUDIT_URL"          json:"audit_url"`
 	TrustedSubnet   string         `env:"TRUSTED_SUBNET"     json:"trusted_subnet"`
 	ServerAddress   NetworkAddress `env:"SERVER_ADDRESS"     json:"server_address"`
+	GRPCAddress     NetworkAddress `env:"GRPC_ADDRESS"       json:"grpc_address"`
 	Retry           RetryConfig    `envPrefix:"RETRY_"       json:"retry"`
 	EnableHTTPS     bool           `env:"ENABLE_HTTPS"       json:"enable_https"`
 }
@@ -38,6 +39,7 @@ type Config struct {
 func NewDefaultConfig() *Config {
 	return &Config{
 		ServerAddress: NetworkAddress{Host: "localhost", Port: 8080},
+		GRPCAddress:   NetworkAddress{Host: "localhost", Port: 3200},
 		BaseURL:       URLPrefix("http://localhost:8080/"),
 		JWTSecret:     "your-secret-key",
 		Retry:         RetryConfig{MaxAttempts: 100},
@@ -53,6 +55,7 @@ func Load() (*Config, error) {
 	cfg := NewDefaultConfig()
 
 	addrFlag := flag.String("a", "", "address to run HTTP server")
+	grpcAddrFlag := flag.String("g", "", "address to run gRPC server")
 	baseURLFlag := flag.String("b", "", "base URL for shortened URL")
 	fileStoragePathFlag := flag.String("f", "", "file storage path")
 	databaseDSNFlag := flag.String("d", "", "database DSN")
@@ -92,6 +95,11 @@ func Load() (*Config, error) {
 	if *addrFlag != "" {
 		if err := cfg.ServerAddress.Set(*addrFlag); err != nil {
 			return nil, fmt.Errorf("invalid server address flag: %w", err)
+		}
+	}
+	if *grpcAddrFlag != "" {
+		if err := cfg.GRPCAddress.Set(*grpcAddrFlag); err != nil {
+			return nil, fmt.Errorf("invalid gRPC address flag: %w", err)
 		}
 	}
 	if *baseURLFlag != "" {
