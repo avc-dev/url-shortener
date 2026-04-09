@@ -467,6 +467,59 @@ func TestStore_ErrorMessages(t *testing.T) {
 	})
 }
 
+// TestStore_GetStats проверяет подсчёт URL и пользователей
+func TestStore_GetStats(t *testing.T) {
+	t.Run("empty store returns zeros", func(t *testing.T) {
+		s := NewStore()
+
+		urls, users, err := s.GetStats()
+
+		require.NoError(t, err)
+		assert.Equal(t, 0, urls)
+		assert.Equal(t, 0, users)
+	})
+
+	t.Run("counts only non-deleted URLs", func(t *testing.T) {
+		s := NewStore()
+		require.NoError(t, s.Write("code1", "https://a.com", "user-1"))
+		require.NoError(t, s.Write("code2", "https://b.com", "user-1"))
+		require.NoError(t, s.Write("code3", "https://c.com", "user-1"))
+		// Помечаем одну запись как удалённую
+		require.NoError(t, s.DeleteURLsBatch([]model.Code{"code2"}, "user-1"))
+
+		urls, _, err := s.GetStats()
+
+		require.NoError(t, err)
+		assert.Equal(t, 2, urls)
+	})
+
+	t.Run("counts unique users, excludes empty userID", func(t *testing.T) {
+		s := NewStore()
+		require.NoError(t, s.Write("code1", "https://a.com", "user-1"))
+		require.NoError(t, s.Write("code2", "https://b.com", "user-1")) // тот же пользователь
+		require.NoError(t, s.Write("code3", "https://c.com", "user-2"))
+		require.NoError(t, s.Write("code4", "https://d.com", "")) // анонимный, не считается
+
+		_, users, err := s.GetStats()
+
+		require.NoError(t, err)
+		assert.Equal(t, 2, users)
+	})
+
+	t.Run("deleted URLs not counted, their users still counted", func(t *testing.T) {
+		s := NewStore()
+		require.NoError(t, s.Write("code1", "https://a.com", "user-1"))
+		require.NoError(t, s.Write("code2", "https://b.com", "user-2"))
+		require.NoError(t, s.DeleteURLsBatch([]model.Code{"code2"}, "user-2"))
+
+		urls, users, err := s.GetStats()
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, urls)
+		assert.Equal(t, 2, users) // user-2 удалил URL, но он всё равно пользователь
+	})
+}
+
 // TestStore_StoreIsolation проверяет изоляцию разных экземпляров Store
 func TestStore_StoreIsolation(t *testing.T) {
 	// Arrange

@@ -28,6 +28,7 @@ type Config struct {
 	JWTSecret       string         `env:"JWT_SECRET" envDefault:"your-secret-key" json:"jwt_secret"`
 	AuditFile       string         `env:"AUDIT_FILE"         json:"audit_file"`
 	AuditURL        string         `env:"AUDIT_URL"          json:"audit_url"`
+	TrustedSubnet   string         `env:"TRUSTED_SUBNET"     json:"trusted_subnet"`
 	ServerAddress   NetworkAddress `env:"SERVER_ADDRESS"     json:"server_address"`
 	Retry           RetryConfig    `envPrefix:"RETRY_"       json:"retry"`
 	EnableHTTPS     bool           `env:"ENABLE_HTTPS"       json:"enable_https"`
@@ -59,6 +60,7 @@ func Load() (*Config, error) {
 	maxAttemptsFlag := flag.Int("r", 0, "maximum attempts for code generation")
 	auditFileFlag := flag.String("audit-file", "", "path to audit log file")
 	auditURLFlag := flag.String("audit-url", "", "URL of remote audit server")
+	trustedSubnetFlag := flag.String("t", "", "trusted subnet in CIDR notation (e.g. 192.168.1.0/24)")
 	enableHTTPSFlag := flag.Bool("s", false, "enable HTTPS")
 	configFileFlag := flag.String("c", "", "path to JSON config file")
 	flag.StringVar(configFileFlag, "config", "", "path to JSON config file")
@@ -114,6 +116,9 @@ func Load() (*Config, error) {
 	}
 	if *auditURLFlag != "" {
 		cfg.AuditURL = *auditURLFlag
+	}
+	if *trustedSubnetFlag != "" {
+		cfg.TrustedSubnet = *trustedSubnetFlag
 	}
 
 	// ENV переменные имеют высший приоритет.

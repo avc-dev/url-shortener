@@ -29,6 +29,8 @@ type Store interface {
 	DeleteURLsBatch(codes []model.Code, userID string) error
 	// IsURLOwnedByUser проверяет, что код принадлежит указанному пользователю.
 	IsURLOwnedByUser(code model.Code, userID string) bool
+	// GetStats возвращает количество активных URL и уникальных пользователей.
+	GetStats() (urlCount int, userCount int, err error)
 }
 
 // Repository адаптирует Store к интерфейсу, ожидаемому usecase-слоем.
@@ -96,4 +98,13 @@ func (r Repository) DeleteURLsBatch(codes []model.Code, userID string) error {
 // IsURLOwnedByUser проверяет, что код принадлежит указанному пользователю.
 func (r Repository) IsURLOwnedByUser(code model.Code, userID string) bool {
 	return r.underlying.IsURLOwnedByUser(code, userID)
+}
+
+// GetStats возвращает количество активных URL и уникальных пользователей.
+func (r Repository) GetStats() (int, int, error) {
+	urlCount, userCount, err := r.underlying.GetStats()
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get stats: %w", err)
+	}
+	return urlCount, userCount, nil
 }

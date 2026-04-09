@@ -29,6 +29,7 @@ type URLUsecase interface {
 	GetOriginalURL(code string) (string, error)
 	GetURLsByUserID(userID string) ([]model.UserURLResponse, error)
 	DeleteURLs(codes []string, userID string) error
+	GetStats() (urlCount int, userCount int, err error)
 }
 
 // Handler обрабатывает HTTP запросы

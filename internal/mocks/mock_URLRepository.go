@@ -179,6 +179,68 @@ func (_c *MockURLRepository_DeleteURLsBatch_Call) RunAndReturn(run func([]model.
 	return _c
 }
 
+// GetStats provides a mock function with no fields
+func (_m *MockURLRepository) GetStats() (int, int, error) {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetStats")
+	}
+
+	var r0 int
+	var r1 int
+	var r2 error
+	if rf, ok := ret.Get(0).(func() (int, int, error)); ok {
+		return rf()
+	}
+	if rf, ok := ret.Get(0).(func() int); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func() int); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Get(1).(int)
+	}
+
+	if rf, ok := ret.Get(2).(func() error); ok {
+		r2 = rf()
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockURLRepository_GetStats_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetStats'
+type MockURLRepository_GetStats_Call struct {
+	*mock.Call
+}
+
+// GetStats is a helper method to define mock.On call
+func (_e *MockURLRepository_Expecter) GetStats() *MockURLRepository_GetStats_Call {
+	return &MockURLRepository_GetStats_Call{Call: _e.mock.On("GetStats")}
+}
+
+func (_c *MockURLRepository_GetStats_Call) Run(run func()) *MockURLRepository_GetStats_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockURLRepository_GetStats_Call) Return(urlCount int, userCount int, err error) *MockURLRepository_GetStats_Call {
+	_c.Call.Return(urlCount, userCount, err)
+	return _c
+}
+
+func (_c *MockURLRepository_GetStats_Call) RunAndReturn(run func() (int, int, error)) *MockURLRepository_GetStats_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetURLByCode provides a mock function with given fields: code
 func (_m *MockURLRepository) GetURLByCode(code model.Code) (model.URL, error) {
 	ret := _m.Called(code)

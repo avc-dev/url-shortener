@@ -22,7 +22,7 @@ import (
 // Для HTTPS дополнительно открывает TLS-listener и возвращает его.
 // Вызывается до запуска горутины, чтобы a.httpServer был доступен без гонки.
 func (a *App) prepare() (net.Listener, error) {
-	router := newRouter(a.handler, a.logger, a.authService)
+	router := newRouter(a.handler, a.logger, a.authService, a.config.TrustedSubnet)
 	addr := a.config.ServerAddress.String()
 
 	if a.config.EnableHTTPS {

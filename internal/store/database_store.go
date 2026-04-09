@@ -292,6 +292,23 @@ func (ds *DatabaseStore) DeleteURLsBatch(codes []model.Code, userID string) erro
 	return ds.batchUpdateDeletedFlag(ctx, codes, userID, true)
 }
 
+// GetStats возвращает количество активных URL и уникальных пользователей из базы данных
+func (ds *DatabaseStore) GetStats() (urlCount int, userCount int, err error) {
+	ctx := context.Background()
+
+	row := ds.pool.QueryRow(ctx, `
+		SELECT
+			COUNT(*) FILTER (WHERE is_deleted = false),
+			COUNT(DISTINCT user_id)
+		FROM urls
+	`)
+	if scanErr := row.Scan(&urlCount, &userCount); scanErr != nil {
+		return 0, 0, fmt.Errorf("failed to get stats: %w", scanErr)
+	}
+
+	return urlCount, userCount, nil
+}
+
 // batchUpdateDeletedFlag выполняет batch update флага is_deleted
 func (ds *DatabaseStore) batchUpdateDeletedFlag(ctx context.Context, codes []model.Code, userID string, isDeleted bool) error {
 	if len(codes) == 0 {
