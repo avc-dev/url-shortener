@@ -4,22 +4,32 @@
 package app
 
 import (
+	"context"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/avc-dev/url-shortener/internal/audit"
 	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/config/db"
 	"github.com/avc-dev/url-shortener/internal/handler"
 	"github.com/avc-dev/url-shortener/internal/service"
+	"github.com/avc-dev/url-shortener/internal/usecase"
 	"go.uber.org/zap"
 )
 
 // App представляет приложение URL shortener
 type App struct {
-	config       *config.Config
-	logger       *zap.Logger
-	handler      *handler.Handler
-	dbPool       db.Database
-	authService  *service.AuthService
-	auditSubject *audit.Subject
+	config      *config.Config
+	logger      *zap.Logger
+	handler     *handler.Handler
+	dbPool      db.Database
+	authService *service.AuthService
+	urlUsecase  *usecase.URLUsecase
+	audit       *audit.Subject
+	httpServer  *http.Server
 }
 
 // New создает новый экземпляр приложения
@@ -34,40 +44,74 @@ func New() (*App, error) {
 		return nil, err
 	}
 
-	h, dbPool, authService, auditSubject, err := initDependencies(cfg, logger)
+	h, dbPool, authService, auditSubject, urlUsecase, err := initDependencies(cfg, logger)
 	if err != nil {
 		logger.Sync()
 		return nil, err
 	}
 
 	return &App{
-		config:       cfg,
-		logger:       logger,
-		handler:      h,
-		dbPool:       dbPool,
-		authService:  authService,
-		auditSubject: auditSubject,
+		config:      cfg,
+		logger:      logger,
+		handler:     h,
+		dbPool:      dbPool,
+		authService: authService,
+		urlUsecase:  urlUsecase,
+		audit:       auditSubject,
 	}, nil
 }
 
 // Run — точка входа для запуска сервера из main.
-// Создаёт приложение, устанавливает отложенное закрытие ресурсов и запускает HTTP-сервер.
+// Создаёт приложение, запускает сервер и обрабатывает сигналы SIGTERM/SIGINT/SIGQUIT
+// для graceful shutdown: ждёт завершения всех активных запросов, затем освобождает ресурсы.
 func Run() error {
 	app, err := New()
 	if err != nil {
 		return err
 	}
 	defer app.logger.Sync()
-	defer app.Close()
 
-	return app.start()
+	ln, err := app.prepare()
+	if err != nil {
+		app.Close()
+		return err
+	}
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer signal.Stop(sigCh)
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- app.serve(ln)
+	}()
+
+	select {
+	case sig := <-sigCh:
+		app.logger.Info("Received signal, shutting down", zap.String("signal", sig.String()))
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if shutdownErr := app.shutdown(ctx); shutdownErr != nil {
+			app.logger.Error("Graceful shutdown failed", zap.Error(shutdownErr))
+		}
+		app.Close()
+		return nil
+	case err := <-errCh:
+		app.Close()
+		return err
+	}
 }
 
-// Close закрывает ресурсы приложения.
-// Сначала ожидает завершения всех горутин аудита, затем закрывает БД.
+// Close освобождает ресурсы приложения в безопасном порядке:
+// 1. Ждёт завершения горутин удаления URL (работают с БД).
+// 2. Ждёт завершения горутин аудита (работают с файлом/сетью).
+// 3. Закрывает пул соединений с БД.
 func (a *App) Close() {
-	if a.auditSubject != nil {
-		a.auditSubject.Close()
+	if a.urlUsecase != nil {
+		a.urlUsecase.Close()
+	}
+	if a.audit != nil {
+		a.audit.Close()
 	}
 	if a.dbPool != nil {
 		a.dbPool.Close()

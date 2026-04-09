@@ -17,13 +17,13 @@ import (
 )
 
 // initDependencies инициализирует все зависимости приложения
-func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler, db.Database, *service.AuthService, *audit.Subject, error) {
+func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler, db.Database, *service.AuthService, *audit.Subject, *usecase.URLUsecase, error) {
 	var dbPool db.Database
 	if cfg.DatabaseDSN != "" {
 		var err error
 		dbPool, err = initDatabase(cfg, logger)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to initialize database: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize database: %w", err)
 		}
 	}
 
@@ -32,7 +32,7 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 		if dbPool != nil {
 			dbPool.Close()
 		}
-		return nil, nil, nil, nil, fmt.Errorf("failed to initialize storage: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
 	repo := repository.New(storage)
@@ -50,7 +50,7 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 	}
 	h := handler.New(urlUsecase, logger, dbPool, handlerOpts...)
 
-	return h, dbPool, authService, auditSubject, nil
+	return h, dbPool, authService, auditSubject, urlUsecase, nil
 }
 
 // initAudit создаёт Subject с наблюдателями на основе конфигурации.
