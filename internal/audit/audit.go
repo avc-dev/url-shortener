@@ -18,10 +18,11 @@ const (
 
 // Event представляет событие аудита.
 type Event struct {
-	Action string `json:"action"`
-	UserID string `json:"user_id,omitempty"`
-	URL    string `json:"url"`
-	TS     int64  `json:"ts"`
+	Action    string `json:"action"`
+	UserID    string `json:"user_id,omitempty"`
+	URL       string `json:"url"`
+	ShortCode string `json:"short_code,omitempty"`
+	TS        int64  `json:"ts"`
 }
 
 // NewEvent создаёт событие аудита с текущим unix-временем.
@@ -34,9 +35,29 @@ func NewEvent(action, userID, url string) Event {
 	}
 }
 
-// Observer — интерфейс приёмника событий аудита.
+// NewFollowEvent создаёт событие аудита для операции перехода по короткому коду.
+// Сохраняет как короткий код (для трассировки), так и оригинальный URL (цель перехода).
+func NewFollowEvent(userID, shortCode, originalURL string) Event {
+	return Event{
+		TS:        time.Now().Unix(),
+		Action:    ActionFollow,
+		UserID:    userID,
+		ShortCode: shortCode,
+		URL:       originalURL,
+	}
+}
+
+// Observer — интерфейс приёмника событий аудита (низкоуровневый, возвращает error).
 type Observer interface {
 	Notify(ctx context.Context, event Event) error
+}
+
+// Notifier — высокоуровневый интерфейс аудита для потребителей (handler, grpchandler).
+// В отличие от Observer не возвращает ошибку: Subject поглощает её внутри.
+// Определён здесь как единственный источник истины, чтобы handler и grpchandler
+// не дублировали одинаковое объявление интерфейса.
+type Notifier interface {
+	Notify(ctx context.Context, event Event)
 }
 
 // Subject хранит список Observer и асинхронно рассылает им события.
@@ -63,7 +84,7 @@ func (s *Subject) Register(o Observer) {
 // Notify асинхронно уведомляет всех зарегистрированных наблюдателей о событии.
 //
 // Намеренно использует context.Background() для каждой горутины: аудит должен
-// быть записан независимо от отмены HTTP-запроса (например, при дисконнекте клиента).
+// быть записан независимо от отмены HTTP/gRPC запроса.
 // Ошибки наблюдателей логируются и не прерывают остальных.
 func (s *Subject) Notify(_ context.Context, event Event) {
 	s.mu.RLock()

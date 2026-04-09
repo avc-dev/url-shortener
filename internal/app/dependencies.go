@@ -22,14 +22,17 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-// initDependencies инициализирует все зависимости приложения
-func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler, db.Database, *service.AuthService, *audit.Subject, *usecase.URLUsecase, *grpc.Server, error) {
+// initDependencies инициализирует все зависимости приложения.
+func initDependencies(cfg *config.Config, logger *zap.Logger) (
+	*handler.Handler, db.Database, *service.AuthService, *audit.Subject, *usecase.URLUsecase,
+	*grpc.Server, *health.Server, error,
+) {
 	var dbPool db.Database
 	if cfg.DatabaseDSN != "" {
 		var err error
 		dbPool, err = initDatabase(cfg, logger)
 		if err != nil {
-			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize database: %w", err)
+			return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize database: %w", err)
 		}
 	}
 
@@ -38,7 +41,7 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 		if dbPool != nil {
 			dbPool.Close()
 		}
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize storage: %w", err)
+		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
 	repo := repository.New(storage)
@@ -48,24 +51,27 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 
 	auditSubject := initAudit(cfg, logger)
 
-	// Передаём Subject в Handler только если он не nil, чтобы избежать
-	// typed-nil внутри интерфейса handler.Auditor.
 	var handlerOpts []handler.Auditor
 	if auditSubject != nil {
 		handlerOpts = append(handlerOpts, auditSubject)
 	}
 	h := handler.New(urlUsecase, logger, dbPool, handlerOpts...)
 
-	grpcSrv := initGRPCServer(urlUsecase, authService, auditSubject, logger)
+	grpcSrv, healthSrv := initGRPCServer(urlUsecase, authService, auditSubject, logger)
 
-	return h, dbPool, authService, auditSubject, urlUsecase, grpcSrv, nil
+	return h, dbPool, authService, auditSubject, urlUsecase, grpcSrv, healthSrv, nil
 }
 
 // initGRPCServer создаёт gRPC-сервер с chain-интерцепторами и регистрирует:
 //   - ShortenerService — основной бизнес-хендлер
 //   - Health — стандартный health check (grpc_health_v1)
 //   - Reflection — для grpcurl и Postman без .proto файла
-func initGRPCServer(urlUsecase *usecase.URLUsecase, authService *service.AuthService, auditSubject *audit.Subject, logger *zap.Logger) *grpc.Server {
+func initGRPCServer(
+	urlUsecase *usecase.URLUsecase,
+	authService *service.AuthService,
+	auditSubject *audit.Subject,
+	logger *zap.Logger,
+) (*grpc.Server, *health.Server) {
 	srv := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			grpchandler.LoggingInterceptor(logger),
@@ -73,23 +79,22 @@ func initGRPCServer(urlUsecase *usecase.URLUsecase, authService *service.AuthSer
 		),
 	)
 
-	// Основной бизнес-хендлер — с аудитом, если он настроен.
-	var auditors []grpchandler.Auditor
+	var auditors []audit.Notifier
 	if auditSubject != nil {
 		auditors = append(auditors, auditSubject)
 	}
 	pb.RegisterShortenerServiceServer(srv, grpchandler.New(urlUsecase, auditors...))
 
-	// Health check — сигнализируем SERVING для всего сервера и конкретного сервиса.
+	// Health check — возвращаем сервер наружу, чтобы App мог обновлять статус
+	// при изменении доступности БД (см. app/health.go).
 	healthSrv := health.NewServer()
 	healthSrv.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 	healthSrv.SetServingStatus(pb.ShortenerService_ServiceDesc.ServiceName, grpc_health_v1.HealthCheckResponse_SERVING)
 	grpc_health_v1.RegisterHealthServer(srv, healthSrv)
 
-	// Reflection — позволяет grpcurl/Postman работать без .proto файла.
 	reflection.Register(srv)
 
-	return srv
+	return srv, healthSrv
 }
 
 // initAudit создаёт Subject с наблюдателями на основе конфигурации.
@@ -111,7 +116,7 @@ func initAudit(cfg *config.Config, logger *zap.Logger) *audit.Subject {
 	return subject
 }
 
-// initDatabase инициализирует подключение к базе данных и применяет миграции
+// initDatabase инициализирует подключение к базе данных и применяет миграции.
 func initDatabase(cfg *config.Config, logger *zap.Logger) (db.Database, error) {
 	ctx := context.Background()
 	dbConfig := db.NewConfig(cfg.DatabaseDSN)

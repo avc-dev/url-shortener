@@ -23,22 +23,17 @@ type URLUsecase interface {
 	GetURLsByUserID(userID string) ([]model.UserURLResponse, error)
 }
 
-// Auditor определяет интерфейс системы аудита (consumer-side interface).
-// Намеренно дублирует handler.Auditor, чтобы избежать import cycle.
-// *audit.Subject удовлетворяет обоим интерфейсам одновременно.
-type Auditor interface {
-	Notify(ctx context.Context, event audit.Event)
-}
-
 // Handler реализует ShortenerServiceServer и делегирует вызовы в URLUsecase.
+// Использует audit.Notifier из пакета audit — единственный источник истины для
+// этого интерфейса, что устраняет дублирование с handler.Auditor.
 type Handler struct {
 	pb.UnimplementedShortenerServiceServer
 	usecase  URLUsecase
-	auditors []Auditor
+	auditors []audit.Notifier
 }
 
 // New создаёт новый gRPC-хендлер. Параметры auditors опциональны.
-func New(uc URLUsecase, auditors ...Auditor) *Handler {
+func New(uc URLUsecase, auditors ...audit.Notifier) *Handler {
 	return &Handler{usecase: uc, auditors: auditors}
 }
 
@@ -51,7 +46,7 @@ func (h *Handler) ShortenURL(ctx context.Context, req *pb.URLShortenRequest) (*p
 		return nil, mapError(err)
 	}
 
-	h.emitAudit(ctx, audit.ActionShorten, userID, req.GetUrl())
+	h.emitAudit(ctx, audit.NewEvent(audit.ActionShorten, userID, req.GetUrl()))
 	return &pb.URLShortenResponse{Result: shortURL}, nil
 }
 
@@ -63,7 +58,7 @@ func (h *Handler) ExpandURL(ctx context.Context, req *pb.URLExpandRequest) (*pb.
 	}
 
 	userID, _ := middleware.GetUserIDFromContext(ctx)
-	h.emitAudit(ctx, audit.ActionFollow, userID, originalURL)
+	h.emitAudit(ctx, audit.NewFollowEvent(userID, req.GetId(), originalURL))
 	return &pb.URLExpandResponse{Result: originalURL}, nil
 }
 
@@ -93,11 +88,7 @@ func (h *Handler) ListUserURLs(ctx context.Context, _ *emptypb.Empty) (*pb.UserU
 }
 
 // emitAudit уведомляет всех аудиторов о событии.
-func (h *Handler) emitAudit(ctx context.Context, action, userID, url string) {
-	if len(h.auditors) == 0 {
-		return
-	}
-	event := audit.NewEvent(action, userID, url)
+func (h *Handler) emitAudit(ctx context.Context, event audit.Event) {
 	for _, a := range h.auditors {
 		a.Notify(ctx, event)
 	}

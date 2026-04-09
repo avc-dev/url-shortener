@@ -10,6 +10,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"net"
 	"net/http"
@@ -59,14 +60,14 @@ func (a *App) serveHTTP(ln net.Listener) error {
 	if ln != nil {
 		a.logger.Info("Starting HTTPS server", zap.String("address", ln.Addr().String()))
 		if err := a.httpServer.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
-			return err
+			return fmt.Errorf("HTTPS server: %w", err)
 		}
 		return nil
 	}
 
 	a.logger.Info("Starting HTTP server", zap.String("address", a.httpServer.Addr))
 	if err := a.httpServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		return err
+		return fmt.Errorf("HTTP server: %w", err)
 	}
 	return nil
 }
@@ -75,7 +76,7 @@ func (a *App) serveHTTP(ln net.Listener) error {
 func (a *App) serveGRPC(ln net.Listener) error {
 	a.logger.Info("Starting gRPC server", zap.String("address", ln.Addr().String()))
 	if err := a.grpcServer.Serve(ln); err != nil {
-		return err
+		return fmt.Errorf("gRPC server: %w", err)
 	}
 	return nil
 }
@@ -93,20 +94,24 @@ func (a *App) shutdown(ctx context.Context) error {
 	}()
 
 	go func() {
-		done := make(chan struct{})
+		// stopCh закрывается только когда GracefulStop реально завершился.
+		// При таймауте контекста вызываем Stop(), затем дожидаемся закрытия stopCh —
+		// это исключает гонку между завершением shutdown() и работающей горутиной GracefulStop.
+		stopCh := make(chan struct{})
 		go func() {
 			if a.grpcServer != nil {
 				a.grpcServer.GracefulStop()
 			}
-			close(done)
+			close(stopCh)
 		}()
 		select {
 		case <-ctx.Done():
 			if a.grpcServer != nil {
 				a.grpcServer.Stop()
 			}
+			<-stopCh // ждём фактического завершения перед возвратом
 			errCh <- ctx.Err()
-		case <-done:
+		case <-stopCh:
 			errCh <- nil
 		}
 	}()

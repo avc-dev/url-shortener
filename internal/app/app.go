@@ -19,6 +19,7 @@ import (
 	"github.com/avc-dev/url-shortener/internal/usecase"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
 )
 
 // App представляет приложение URL shortener
@@ -32,6 +33,7 @@ type App struct {
 	audit       *audit.Subject
 	httpServer  *http.Server
 	grpcServer  *grpc.Server
+	healthSrv   *health.Server
 }
 
 // New создает новый экземпляр приложения
@@ -46,7 +48,7 @@ func New() (*App, error) {
 		return nil, err
 	}
 
-	h, dbPool, authService, auditSubject, urlUsecase, grpcSrv, err := initDependencies(cfg, logger)
+	h, dbPool, authService, auditSubject, urlUsecase, grpcSrv, healthSrv, err := initDependencies(cfg, logger)
 	if err != nil {
 		logger.Sync()
 		return nil, err
@@ -61,6 +63,7 @@ func New() (*App, error) {
 		urlUsecase:  urlUsecase,
 		audit:       auditSubject,
 		grpcServer:  grpcSrv,
+		healthSrv:   healthSrv,
 	}, nil
 }
 
@@ -80,6 +83,12 @@ func Run() error {
 		return err
 	}
 
+	// Health checker живёт пока серверы работают.
+	// Отменяется первым — до shutdown, чтобы не обновлять статус в процессе остановки.
+	healthCtx, cancelHealth := context.WithCancel(context.Background())
+	defer cancelHealth()
+	app.startHealthChecker(healthCtx)
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer signal.Stop(sigCh)
@@ -91,6 +100,7 @@ func Run() error {
 	select {
 	case sig := <-sigCh:
 		app.logger.Info("Received signal, shutting down", zap.String("signal", sig.String()))
+		cancelHealth()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if shutdownErr := app.shutdown(ctx); shutdownErr != nil {
@@ -98,7 +108,17 @@ func Run() error {
 		}
 		app.Close()
 		return nil
+
 	case err := <-errCh:
+		// Один из серверов упал — останавливаем второй перед выходом,
+		// чтобы in-flight запросы не были обрублены внезапно.
+		app.logger.Error("Server failed, initiating shutdown", zap.Error(err))
+		cancelHealth()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if shutdownErr := app.shutdown(shutdownCtx); shutdownErr != nil {
+			app.logger.Error("Graceful shutdown after failure failed", zap.Error(shutdownErr))
+		}
 		app.Close()
 		return err
 	}

@@ -203,6 +203,7 @@ func TestGetURL_EmitsAuditFollowEvent(t *testing.T) {
 	require.Len(t, events, 1)
 	assert.Equal(t, audit.ActionFollow, events[0].Action)
 	assert.Equal(t, originalURL, events[0].URL)
+	assert.Equal(t, "abc123", events[0].ShortCode)
 	assert.Empty(t, events[0].UserID)
 }
 
