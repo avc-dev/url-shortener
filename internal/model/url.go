@@ -38,3 +38,9 @@ type UserURLResponse struct {
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
 }
+
+// Stats содержит агрегированную статистику сервиса.
+type Stats struct {
+	URLCount  int
+	UserCount int
+}

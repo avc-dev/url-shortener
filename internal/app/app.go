@@ -5,7 +5,6 @@ package app
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,7 +17,6 @@ import (
 	"github.com/avc-dev/url-shortener/internal/service"
 	"github.com/avc-dev/url-shortener/internal/usecase"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 )
 
@@ -31,9 +29,8 @@ type App struct {
 	authService *service.AuthService
 	urlUsecase  *usecase.URLUsecase
 	audit       *audit.Subject
-	httpServer  *http.Server
-	grpcServer  *grpc.Server
 	healthSrv   *health.Server
+	servers     []Server
 }
 
 // New создает новый экземпляр приложения
@@ -54,6 +51,8 @@ func New() (*App, error) {
 		return nil, err
 	}
 
+	router := newRouter(h, logger, authService, cfg.TrustedSubnet)
+
 	return &App{
 		config:      cfg,
 		logger:      logger,
@@ -62,13 +61,16 @@ func New() (*App, error) {
 		authService: authService,
 		urlUsecase:  urlUsecase,
 		audit:       auditSubject,
-		grpcServer:  grpcSrv,
 		healthSrv:   healthSrv,
+		servers: []Server{
+			newHTTPServer(cfg.ServerAddress.String(), router),
+			newGRPCServer(cfg.GRPCAddress.String(), grpcSrv),
+		},
 	}, nil
 }
 
 // Run — точка входа для запуска сервера из main.
-// Запускает HTTP и gRPC серверы параллельно, обрабатывает сигналы SIGTERM/SIGINT/SIGQUIT
+// Запускает все серверы параллельно, обрабатывает сигналы SIGTERM/SIGINT/SIGQUIT
 // для graceful shutdown.
 func Run() error {
 	app, err := New()
@@ -77,7 +79,7 @@ func Run() error {
 	}
 	defer app.logger.Sync()
 
-	httpLn, grpcLn, err := app.prepare()
+	listeners, err := app.prepare()
 	if err != nil {
 		app.Close()
 		return err
@@ -93,9 +95,11 @@ func Run() error {
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer signal.Stop(sigCh)
 
-	errCh := make(chan error, 2)
-	go func() { errCh <- app.serveHTTP(httpLn) }()
-	go func() { errCh <- app.serveGRPC(grpcLn) }()
+	errCh := make(chan error, len(app.servers))
+	for i, s := range app.servers {
+		s, ln := s, listeners[i]
+		go func() { errCh <- app.serve(s, ln) }()
+	}
 
 	select {
 	case sig := <-sigCh:
@@ -110,7 +114,7 @@ func Run() error {
 		return nil
 
 	case err := <-errCh:
-		// Один из серверов упал — останавливаем второй перед выходом,
+		// Один из серверов упал — останавливаем остальные перед выходом,
 		// чтобы in-flight запросы не были обрублены внезапно.
 		app.logger.Error("Server failed, initiating shutdown", zap.Error(err))
 		cancelHealth()

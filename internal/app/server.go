@@ -9,115 +9,85 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"math/big"
 	"net"
-	"net/http"
 	"time"
 
 	"go.uber.org/zap"
 )
 
-// prepare создаёт HTTP/HTTPS и gRPC серверы, открывает слушателей и возвращает их.
-// TLS используется для обоих протоколов, если EnableHTTPS=true.
-func (a *App) prepare() (httpLn net.Listener, grpcLn net.Listener, err error) {
-	router := newRouter(a.handler, a.logger, a.authService, a.config.TrustedSubnet)
-	httpAddr := a.config.ServerAddress.String()
-	grpcAddr := a.config.GRPCAddress.String()
+// Server описывает полный жизненный цикл протокольного сервера.
+// Каждый протокол реализует этот интерфейс независимо.
+type Server interface {
+	Name() string
+	Prepare(tlsCfg *tls.Config) (net.Listener, error)
+	Serve(ln net.Listener) error
+	Shutdown(ctx context.Context) error
+}
 
+// shutdowner используется внутри runParallel и не привязан к Server,
+// чтобы оставить runParallel универсальным.
+type shutdowner interface {
+	Shutdown(ctx context.Context) error
+}
+
+// prepare открывает listeners для всех серверов приложения.
+// TLS-конфиг генерируется один раз и передаётся каждому серверу, если EnableHTTPS=true.
+func (a *App) prepare() ([]net.Listener, error) {
+	var tlsCfg *tls.Config
 	if a.config.EnableHTTPS {
-		tlsCfg, tlsErr := buildSelfSignedTLSConfig()
-		if tlsErr != nil {
-			return nil, nil, tlsErr
-		}
-
-		httpLn, err = tls.Listen("tcp", httpAddr, tlsCfg)
+		var err error
+		tlsCfg, err = buildSelfSignedTLSConfig()
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		a.httpServer = &http.Server{Handler: router}
-
-		grpcLn, err = tls.Listen("tcp", grpcAddr, tlsCfg)
-		if err != nil {
-			httpLn.Close()
-			return nil, nil, err
-		}
-		return httpLn, grpcLn, nil
 	}
 
-	a.httpServer = &http.Server{Addr: httpAddr, Handler: router}
-
-	grpcLn, err = net.Listen("tcp", grpcAddr)
-	if err != nil {
-		return nil, nil, err
+	listeners := make([]net.Listener, 0, len(a.servers))
+	for _, s := range a.servers {
+		ln, err := s.Prepare(tlsCfg)
+		if err != nil {
+			for _, opened := range listeners {
+				opened.Close()
+			}
+			return nil, err
+		}
+		listeners = append(listeners, ln)
 	}
-	return nil, grpcLn, nil
+	return listeners, nil
 }
 
-// serveHTTP запускает HTTP-сервер и блокирует до его остановки.
-func (a *App) serveHTTP(ln net.Listener) error {
-	if ln != nil {
-		a.logger.Info("Starting HTTPS server", zap.String("address", ln.Addr().String()))
-		if err := a.httpServer.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
-			return fmt.Errorf("HTTPS server: %w", err)
-		}
-		return nil
-	}
-
-	a.logger.Info("Starting HTTP server", zap.String("address", a.httpServer.Addr))
-	if err := a.httpServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		return fmt.Errorf("HTTP server: %w", err)
+// serve запускает сервер на listener и блокирует до его остановки.
+func (a *App) serve(s Server, ln net.Listener) error {
+	a.logger.Info("Starting server",
+		zap.String("name", s.Name()),
+		zap.String("address", ln.Addr().String()),
+	)
+	if err := s.Serve(ln); err != nil {
+		return fmt.Errorf("%s server: %w", s.Name(), err)
 	}
 	return nil
 }
 
-// serveGRPC запускает gRPC-сервер и блокирует до его остановки.
-func (a *App) serveGRPC(ln net.Listener) error {
-	a.logger.Info("Starting gRPC server", zap.String("address", ln.Addr().String()))
-	if err := a.grpcServer.Serve(ln); err != nil {
-		return fmt.Errorf("gRPC server: %w", err)
-	}
-	return nil
-}
-
-// shutdown выполняет graceful shutdown обоих серверов параллельно.
+// shutdown выполняет graceful shutdown всех серверов параллельно.
 func (a *App) shutdown(ctx context.Context) error {
-	errCh := make(chan error, 2)
+	servers := make([]shutdowner, len(a.servers))
+	for i, s := range a.servers {
+		servers[i] = s
+	}
+	return runParallel(ctx, servers...)
+}
 
-	go func() {
-		if a.httpServer != nil {
-			errCh <- a.httpServer.Shutdown(ctx)
-		} else {
-			errCh <- nil
-		}
-	}()
-
-	go func() {
-		// stopCh закрывается только когда GracefulStop реально завершился.
-		// При таймауте контекста вызываем Stop(), затем дожидаемся закрытия stopCh —
-		// это исключает гонку между завершением shutdown() и работающей горутиной GracefulStop.
-		stopCh := make(chan struct{})
-		go func() {
-			if a.grpcServer != nil {
-				a.grpcServer.GracefulStop()
-			}
-			close(stopCh)
-		}()
-		select {
-		case <-ctx.Done():
-			if a.grpcServer != nil {
-				a.grpcServer.Stop()
-			}
-			<-stopCh // ждём фактического завершения перед возвратом
-			errCh <- ctx.Err()
-		case <-stopCh:
-			errCh <- nil
-		}
-	}()
-
+// runParallel останавливает серверы параллельно и возвращает первую встреченную ошибку.
+func runParallel(ctx context.Context, servers ...shutdowner) error {
+	errCh := make(chan error, len(servers))
+	for _, s := range servers {
+		s := s
+		go func() { errCh <- s.Shutdown(ctx) }()
+	}
 	var firstErr error
-	for range 2 {
+	for range servers {
 		if err := <-errCh; err != nil && firstErr == nil {
 			firstErr = err
 		}

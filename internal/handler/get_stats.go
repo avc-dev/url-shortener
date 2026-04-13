@@ -13,7 +13,7 @@ type statsResponse struct {
 // GetStats возвращает количество URL и пользователей в сервисе.
 // Проверка доступа по IP выполняется middleware.TrustedSubnet на уровне роутера.
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
-	urlCount, userCount, err := h.usecase.GetStats()
+	stats, err := h.usecase.GetStats()
 	if err != nil {
 		h.logger.Error("failed to get stats")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -22,7 +22,7 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if encErr := json.NewEncoder(w).Encode(statsResponse{URLs: urlCount, Users: userCount}); encErr != nil {
+	if encErr := json.NewEncoder(w).Encode(statsResponse{URLs: stats.URLCount, Users: stats.UserCount}); encErr != nil {
 		h.logger.Error("failed to encode stats response")
 	}
 }

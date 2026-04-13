@@ -180,38 +180,31 @@ func (_c *MockURLRepository_DeleteURLsBatch_Call) RunAndReturn(run func([]model.
 }
 
 // GetStats provides a mock function with no fields
-func (_m *MockURLRepository) GetStats() (int, int, error) {
+func (_m *MockURLRepository) GetStats() (model.Stats, error) {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetStats")
 	}
 
-	var r0 int
-	var r1 int
-	var r2 error
-	if rf, ok := ret.Get(0).(func() (int, int, error)); ok {
+	var r0 model.Stats
+	var r1 error
+	if rf, ok := ret.Get(0).(func() (model.Stats, error)); ok {
 		return rf()
 	}
-	if rf, ok := ret.Get(0).(func() int); ok {
+	if rf, ok := ret.Get(0).(func() model.Stats); ok {
 		r0 = rf()
 	} else {
-		r0 = ret.Get(0).(int)
+		r0 = ret.Get(0).(model.Stats)
 	}
 
-	if rf, ok := ret.Get(1).(func() int); ok {
+	if rf, ok := ret.Get(1).(func() error); ok {
 		r1 = rf()
 	} else {
-		r1 = ret.Get(1).(int)
+		r1 = ret.Error(1)
 	}
 
-	if rf, ok := ret.Get(2).(func() error); ok {
-		r2 = rf()
-	} else {
-		r2 = ret.Error(2)
-	}
-
-	return r0, r1, r2
+	return r0, r1
 }
 
 // MockURLRepository_GetStats_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetStats'
@@ -231,12 +224,12 @@ func (_c *MockURLRepository_GetStats_Call) Run(run func()) *MockURLRepository_Ge
 	return _c
 }
 
-func (_c *MockURLRepository_GetStats_Call) Return(urlCount int, userCount int, err error) *MockURLRepository_GetStats_Call {
-	_c.Call.Return(urlCount, userCount, err)
+func (_c *MockURLRepository_GetStats_Call) Return(_a0 model.Stats, _a1 error) *MockURLRepository_GetStats_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockURLRepository_GetStats_Call) RunAndReturn(run func() (int, int, error)) *MockURLRepository_GetStats_Call {
+func (_c *MockURLRepository_GetStats_Call) RunAndReturn(run func() (model.Stats, error)) *MockURLRepository_GetStats_Call {
 	_c.Call.Return(run)
 	return _c
 }

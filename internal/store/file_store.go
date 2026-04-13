@@ -198,7 +198,7 @@ func (fs *FileStore) IsURLOwnedByUser(code model.Code, userID string) bool {
 }
 
 // GetStats возвращает количество сокращённых URL и уникальных пользователей
-func (fs *FileStore) GetStats() (int, int, error) {
+func (fs *FileStore) GetStats() (model.Stats, error) {
 	return fs.store.GetStats()
 }
 

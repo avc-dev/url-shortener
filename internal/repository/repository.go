@@ -30,7 +30,7 @@ type Store interface {
 	// IsURLOwnedByUser проверяет, что код принадлежит указанному пользователю.
 	IsURLOwnedByUser(code model.Code, userID string) bool
 	// GetStats возвращает количество активных URL и уникальных пользователей.
-	GetStats() (urlCount int, userCount int, err error)
+	GetStats() (model.Stats, error)
 }
 
 // Repository адаптирует Store к интерфейсу, ожидаемому usecase-слоем.
@@ -101,10 +101,10 @@ func (r Repository) IsURLOwnedByUser(code model.Code, userID string) bool {
 }
 
 // GetStats возвращает количество активных URL и уникальных пользователей.
-func (r Repository) GetStats() (int, int, error) {
-	urlCount, userCount, err := r.underlying.GetStats()
+func (r Repository) GetStats() (model.Stats, error) {
+	stats, err := r.underlying.GetStats()
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed to get stats: %w", err)
+		return model.Stats{}, fmt.Errorf("failed to get stats: %w", err)
 	}
-	return urlCount, userCount, nil
+	return stats, nil
 }

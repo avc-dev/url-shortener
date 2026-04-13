@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/avc-dev/url-shortener/internal/mocks"
+	"github.com/avc-dev/url-shortener/internal/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -15,7 +16,7 @@ import (
 
 func TestGetStats_Success(t *testing.T) {
 	mockUsecase := mocks.NewMockURLUsecase(t)
-	mockUsecase.EXPECT().GetStats().Return(42, 7, nil).Once()
+	mockUsecase.EXPECT().GetStats().Return(model.Stats{URLCount: 42, UserCount: 7}, nil).Once()
 
 	h := New(mockUsecase, zap.NewNop(), nil)
 
@@ -38,7 +39,7 @@ func TestGetStats_Success(t *testing.T) {
 
 func TestGetStats_ZeroCounts(t *testing.T) {
 	mockUsecase := mocks.NewMockURLUsecase(t)
-	mockUsecase.EXPECT().GetStats().Return(0, 0, nil).Once()
+	mockUsecase.EXPECT().GetStats().Return(model.Stats{}, nil).Once()
 
 	h := New(mockUsecase, zap.NewNop(), nil)
 
@@ -60,7 +61,7 @@ func TestGetStats_ZeroCounts(t *testing.T) {
 
 func TestGetStats_UsecaseError(t *testing.T) {
 	mockUsecase := mocks.NewMockURLUsecase(t)
-	mockUsecase.EXPECT().GetStats().Return(0, 0, errors.New("storage unavailable")).Once()
+	mockUsecase.EXPECT().GetStats().Return(model.Stats{}, errors.New("storage unavailable")).Once()
 
 	h := New(mockUsecase, zap.NewNop(), nil)
 

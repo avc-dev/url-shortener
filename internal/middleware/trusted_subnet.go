@@ -9,21 +9,16 @@ import (
 
 // TrustedSubnet возвращает middleware, разрешающий запросы только из указанной подсети CIDR.
 // Адрес клиента берётся из заголовка X-Real-IP.
-// При пустом cidr или IP вне подсети возвращает 403 Forbidden.
+// Предполагается, что cidr непустой — решение о подключении middleware принимает роутер.
+// При невалидном cidr или IP вне подсети возвращает 403 Forbidden.
 func TrustedSubnet(cidr string, logger *zap.Logger) func(http.Handler) http.Handler {
 	ipNet := parseCIDR(cidr, logger)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if ipNet == nil {
-				// cidr пуст или невалиден — доступ запрещён для всех
-				w.WriteHeader(http.StatusForbidden)
-				return
-			}
-
 			realIP := r.Header.Get("X-Real-IP")
 			ip := net.ParseIP(realIP)
-			if ip == nil || !ipNet.Contains(ip) {
+			if ipNet == nil || ip == nil || !ipNet.Contains(ip) {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}

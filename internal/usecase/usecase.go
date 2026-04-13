@@ -21,7 +21,7 @@ type URLRepository interface {
 	IsCodeUnique(code model.Code) bool
 	DeleteURLsBatch(codes []model.Code, userID string) error
 	IsURLOwnedByUser(code model.Code, userID string) bool
-	GetStats() (urlCount int, userCount int, err error)
+	GetStats() (model.Stats, error)
 }
 
 // URLService определяет интерфейс для работы с сервисом генерации коротких URL
@@ -65,7 +65,7 @@ func NewURLUsecaseWithDone(repo URLRepository, service URLService, cfg *config.C
 }
 
 // GetStats возвращает количество сокращённых URL и уникальных пользователей в сервисе.
-func (u *URLUsecase) GetStats() (urlCount int, userCount int, err error) {
+func (u *URLUsecase) GetStats() (model.Stats, error) {
 	return u.repo.GetStats()
 }
 

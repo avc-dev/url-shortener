@@ -4,12 +4,10 @@ package shortener.v1;
 
 option go_package = "github.com/avc-dev/url-shortener/internal/proto";
 
-import "google/protobuf/empty.proto";
-
 service ShortenerService {
   rpc ShortenURL (URLShortenRequest) returns (URLShortenResponse);
   rpc ExpandURL (URLExpandRequest) returns (URLExpandResponse);
-  rpc ListUserURLs (google.protobuf.Empty) returns (UserURLsResponse);
+  rpc ListUserURLs (ListUserURLsRequest) returns (UserURLsResponse);
 }
 
 message URLShortenRequest {
@@ -27,6 +25,10 @@ message URLExpandRequest {
 message URLExpandResponse {
   string result = 1;
 }
+
+// ListUserURLsRequest is intentionally empty for now.
+// Fields (e.g. pagination, filters) can be added here without breaking backward compatibility.
+message ListUserURLsRequest {}
 
 message UserURLsResponse {
   repeated URLData url = 1;

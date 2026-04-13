@@ -11,7 +11,6 @@ import (
 	"github.com/avc-dev/url-shortener/internal/usecase"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // URLUsecase определяет интерфейс бизнес-логики, используемой gRPC-хендлером.
@@ -47,7 +46,7 @@ func (h *Handler) ShortenURL(ctx context.Context, req *pb.URLShortenRequest) (*p
 	}
 
 	h.emitAudit(ctx, audit.NewEvent(audit.ActionShorten, userID, req.GetUrl()))
-	return &pb.URLShortenResponse{Result: shortURL}, nil
+	return pb.URLShortenResponse_builder{Result: shortURL}.Build(), nil
 }
 
 // ExpandURL реализует rpc ExpandURL — возвращает оригинальный URL по короткому коду.
@@ -59,12 +58,12 @@ func (h *Handler) ExpandURL(ctx context.Context, req *pb.URLExpandRequest) (*pb.
 
 	userID, _ := middleware.GetUserIDFromContext(ctx)
 	h.emitAudit(ctx, audit.NewFollowEvent(userID, req.GetId(), originalURL))
-	return &pb.URLExpandResponse{Result: originalURL}, nil
+	return pb.URLExpandResponse_builder{Result: originalURL}.Build(), nil
 }
 
 // ListUserURLs реализует rpc ListUserURLs — возвращает все URL текущего пользователя.
 // Требует валидного JWT-токена в metadata: анонимные запросы возвращают Unauthenticated.
-func (h *Handler) ListUserURLs(ctx context.Context, _ *emptypb.Empty) (*pb.UserURLsResponse, error) {
+func (h *Handler) ListUserURLs(ctx context.Context, _ *pb.ListUserURLsRequest) (*pb.UserURLsResponse, error) {
 	if !IsAuthenticated(ctx) {
 		return nil, status.Error(codes.Unauthenticated, "valid authorization token required")
 	}
@@ -78,13 +77,13 @@ func (h *Handler) ListUserURLs(ctx context.Context, _ *emptypb.Empty) (*pb.UserU
 
 	data := make([]*pb.URLData, 0, len(urls))
 	for _, u := range urls {
-		data = append(data, &pb.URLData{
+		data = append(data, pb.URLData_builder{
 			ShortUrl:    u.ShortURL,
 			OriginalUrl: u.OriginalURL,
-		})
+		}.Build())
 	}
 
-	return &pb.UserURLsResponse{Url: data}, nil
+	return pb.UserURLsResponse_builder{Url: data}.Build(), nil
 }
 
 // emitAudit уведомляет всех аудиторов о событии.

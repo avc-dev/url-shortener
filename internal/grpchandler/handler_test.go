@@ -21,7 +21,6 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const bufSize = 1024 * 1024
@@ -87,7 +86,7 @@ func TestShortenURL_Success(t *testing.T) {
 		CreateShortURLFromString("https://example.com", "user-123").
 		Return("http://localhost:8080/abc12345", nil).Once()
 
-	resp, err := ts.client.ShortenURL(ts.authCtx(t, "user-123"), &pb.URLShortenRequest{Url: "https://example.com"})
+	resp, err := ts.client.ShortenURL(ts.authCtx(t, "user-123"), pb.URLShortenRequest_builder{Url: "https://example.com"}.Build())
 	require.NoError(t, err)
 	assert.Equal(t, "http://localhost:8080/abc12345", resp.GetResult())
 }
@@ -100,7 +99,7 @@ func TestShortenURL_AnonymousUser(t *testing.T) {
 		CreateShortURLFromString("https://example.com", mock.AnythingOfType("string")).
 		Return("http://localhost:8080/abc12345", nil).Once()
 
-	resp, err := ts.client.ShortenURL(context.Background(), &pb.URLShortenRequest{Url: "https://example.com"})
+	resp, err := ts.client.ShortenURL(context.Background(), pb.URLShortenRequest_builder{Url: "https://example.com"}.Build())
 	require.NoError(t, err)
 	assert.Equal(t, "http://localhost:8080/abc12345", resp.GetResult())
 }
@@ -117,7 +116,7 @@ func TestShortenURL_PlainToken(t *testing.T) {
 		CreateShortURLFromString("https://example.com", "user-plain").
 		Return("http://localhost:8080/abc12345", nil).Once()
 
-	resp, err := ts.client.ShortenURL(ctx, &pb.URLShortenRequest{Url: "https://example.com"})
+	resp, err := ts.client.ShortenURL(ctx, pb.URLShortenRequest_builder{Url: "https://example.com"}.Build())
 	require.NoError(t, err)
 	assert.Equal(t, "http://localhost:8080/abc12345", resp.GetResult())
 }
@@ -129,7 +128,7 @@ func TestShortenURL_InvalidURL(t *testing.T) {
 		CreateShortURLFromString("not-a-url", mock.AnythingOfType("string")).
 		Return("", usecase.ErrInvalidURL).Once()
 
-	_, err := ts.client.ShortenURL(context.Background(), &pb.URLShortenRequest{Url: "not-a-url"})
+	_, err := ts.client.ShortenURL(context.Background(), pb.URLShortenRequest_builder{Url: "not-a-url"}.Build())
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
@@ -141,7 +140,7 @@ func TestShortenURL_EmptyURL(t *testing.T) {
 		CreateShortURLFromString("", mock.AnythingOfType("string")).
 		Return("", usecase.ErrEmptyURL).Once()
 
-	_, err := ts.client.ShortenURL(context.Background(), &pb.URLShortenRequest{Url: ""})
+	_, err := ts.client.ShortenURL(context.Background(), pb.URLShortenRequest_builder{Url: ""}.Build())
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
@@ -153,7 +152,7 @@ func TestShortenURL_URLAlreadyExists(t *testing.T) {
 		CreateShortURLFromString("https://example.com", mock.AnythingOfType("string")).
 		Return("", usecase.URLAlreadyExistsError{Code: "http://localhost:8080/existing"}).Once()
 
-	_, err := ts.client.ShortenURL(context.Background(), &pb.URLShortenRequest{Url: "https://example.com"})
+	_, err := ts.client.ShortenURL(context.Background(), pb.URLShortenRequest_builder{Url: "https://example.com"}.Build())
 	require.Error(t, err)
 	assert.Equal(t, codes.AlreadyExists, status.Code(err))
 	assert.Contains(t, status.Convert(err).Message(), "http://localhost:8080/existing")
@@ -168,7 +167,7 @@ func TestExpandURL_Success(t *testing.T) {
 		GetOriginalURL("abc12345").
 		Return("https://example.com", nil).Once()
 
-	resp, err := ts.client.ExpandURL(context.Background(), &pb.URLExpandRequest{Id: "abc12345"})
+	resp, err := ts.client.ExpandURL(context.Background(), pb.URLExpandRequest_builder{Id: "abc12345"}.Build())
 	require.NoError(t, err)
 	assert.Equal(t, "https://example.com", resp.GetResult())
 }
@@ -180,7 +179,7 @@ func TestExpandURL_NotFound(t *testing.T) {
 		GetOriginalURL("unknown").
 		Return("", usecase.ErrURLNotFound).Once()
 
-	_, err := ts.client.ExpandURL(context.Background(), &pb.URLExpandRequest{Id: "unknown"})
+	_, err := ts.client.ExpandURL(context.Background(), pb.URLExpandRequest_builder{Id: "unknown"}.Build())
 	require.Error(t, err)
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
@@ -192,7 +191,7 @@ func TestExpandURL_Deleted(t *testing.T) {
 		GetOriginalURL("deleted").
 		Return("", usecase.ErrURLDeleted).Once()
 
-	_, err := ts.client.ExpandURL(context.Background(), &pb.URLExpandRequest{Id: "deleted"})
+	_, err := ts.client.ExpandURL(context.Background(), pb.URLExpandRequest_builder{Id: "deleted"}.Build())
 	require.Error(t, err)
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
@@ -209,7 +208,7 @@ func TestListUserURLs_Success(t *testing.T) {
 			{ShortURL: "http://localhost:8080/def", OriginalURL: "https://google.com"},
 		}, nil).Once()
 
-	resp, err := ts.client.ListUserURLs(ts.authCtx(t, "user-123"), &emptypb.Empty{})
+	resp, err := ts.client.ListUserURLs(ts.authCtx(t, "user-123"), pb.ListUserURLsRequest_builder{}.Build())
 	require.NoError(t, err)
 	require.Len(t, resp.GetUrl(), 2)
 	assert.Equal(t, "http://localhost:8080/abc", resp.GetUrl()[0].GetShortUrl())
@@ -223,7 +222,7 @@ func TestListUserURLs_Empty(t *testing.T) {
 		GetURLsByUserID("user-123").
 		Return([]model.UserURLResponse{}, nil).Once()
 
-	resp, err := ts.client.ListUserURLs(ts.authCtx(t, "user-123"), &emptypb.Empty{})
+	resp, err := ts.client.ListUserURLs(ts.authCtx(t, "user-123"), pb.ListUserURLsRequest_builder{}.Build())
 	require.NoError(t, err)
 	assert.Empty(t, resp.GetUrl())
 }
@@ -233,7 +232,7 @@ func TestListUserURLs_NoToken_Unauthenticated(t *testing.T) {
 	// клиент не передал JWT, а сервер не может угадать, чьи URL вернуть.
 	ts := newTestServer(t)
 
-	_, err := ts.client.ListUserURLs(context.Background(), &emptypb.Empty{})
+	_, err := ts.client.ListUserURLs(context.Background(), pb.ListUserURLsRequest_builder{}.Build())
 	require.Error(t, err)
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
@@ -244,7 +243,7 @@ func TestListUserURLs_InvalidToken_Unauthenticated(t *testing.T) {
 	ctx := metadata.NewOutgoingContext(context.Background(),
 		metadata.Pairs("authorization", "Bearer invalid.token.here"))
 
-	_, err := ts.client.ListUserURLs(ctx, &emptypb.Empty{})
+	_, err := ts.client.ListUserURLs(ctx, pb.ListUserURLsRequest_builder{}.Build())
 	require.Error(t, err)
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
