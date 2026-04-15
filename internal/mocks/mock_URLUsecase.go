@@ -239,6 +239,61 @@ func (_c *MockURLUsecase_GetOriginalURL_Call) RunAndReturn(run func(string) (str
 	return _c
 }
 
+// GetStats provides a mock function with no fields
+func (_m *MockURLUsecase) GetStats() (model.Stats, error) {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetStats")
+	}
+
+	var r0 model.Stats
+	var r1 error
+	if rf, ok := ret.Get(0).(func() (model.Stats, error)); ok {
+		return rf()
+	}
+	if rf, ok := ret.Get(0).(func() model.Stats); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(model.Stats)
+	}
+
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockURLUsecase_GetStats_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetStats'
+type MockURLUsecase_GetStats_Call struct {
+	*mock.Call
+}
+
+// GetStats is a helper method to define mock.On call
+func (_e *MockURLUsecase_Expecter) GetStats() *MockURLUsecase_GetStats_Call {
+	return &MockURLUsecase_GetStats_Call{Call: _e.mock.On("GetStats")}
+}
+
+func (_c *MockURLUsecase_GetStats_Call) Run(run func()) *MockURLUsecase_GetStats_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockURLUsecase_GetStats_Call) Return(_a0 model.Stats, _a1 error) *MockURLUsecase_GetStats_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockURLUsecase_GetStats_Call) RunAndReturn(run func() (model.Stats, error)) *MockURLUsecase_GetStats_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetURLsByUserID provides a mock function with given fields: userID
 func (_m *MockURLUsecase) GetURLsByUserID(userID string) ([]model.UserURLResponse, error) {
 	ret := _m.Called(userID)

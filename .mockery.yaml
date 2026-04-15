@@ -5,12 +5,12 @@ packages:
   github.com/avc-dev/url-shortener/internal/usecase:
     interfaces:
       URLService:
+      URLRepository:
   github.com/avc-dev/url-shortener/internal/handler:
     interfaces:
       URLUsecase:
   github.com/avc-dev/url-shortener/internal/service:
     interfaces:
-      URLRepository:
       Generator:
   github.com/avc-dev/url-shortener/internal/config/db:
     interfaces:

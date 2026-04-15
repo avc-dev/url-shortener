@@ -217,6 +217,29 @@ func (s *Store) IsURLOwnedByUser(code model.Code, userID string) bool {
 	return exists && storedUserID == userID && !s.deletedMap[code]
 }
 
+// GetStats возвращает количество сокращённых URL (не удалённых) и уникальных пользователей
+func (s *Store) GetStats() (model.Stats, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	var stats model.Stats
+	for code := range s.store {
+		if !s.deletedMap[code] {
+			stats.URLCount++
+		}
+	}
+
+	seen := make(map[string]struct{}, len(s.userMap))
+	for _, userID := range s.userMap {
+		if userID != "" {
+			seen[userID] = struct{}{}
+		}
+	}
+	stats.UserCount = len(seen)
+
+	return stats, nil
+}
+
 // DeleteURLsBatch помечает несколько URL как удалённые для указанного пользователя
 func (s *Store) DeleteURLsBatch(codes []model.Code, userID string) error {
 	s.mutex.Lock()

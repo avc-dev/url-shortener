@@ -9,7 +9,7 @@ import (
 )
 
 // newRouter создает и настраивает роутер приложения
-func newRouter(h *handler.Handler, logger *zap.Logger, authService *service.AuthService) *chi.Mux {
+func newRouter(h *handler.Handler, logger *zap.Logger, authService *service.AuthService, trustedSubnet string) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Middleware
@@ -31,6 +31,14 @@ func newRouter(h *handler.Handler, logger *zap.Logger, authService *service.Auth
 	// User URLs routes - требуют аутентификации
 	r.With(authMiddleware.RequireAuth).Get("/api/user/urls", h.GetUserURLs)
 	r.With(authMiddleware.RequireAuth).Delete("/api/user/urls", h.DeleteURLs)
+
+	// Internal routes - если TrustedSubnet задан, доступны только из доверенной подсети;
+	// если не задан — механизм ограничения отключён и маршрут открыт для всех.
+	if trustedSubnet != "" {
+		r.With(middleware.TrustedSubnet(trustedSubnet, logger)).Get("/api/internal/stats", h.GetStats)
+	} else {
+		r.Get("/api/internal/stats", h.GetStats)
+	}
 
 	return r
 }

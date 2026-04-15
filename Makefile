@@ -1,3 +1,15 @@
+.PHONY: proto
+proto:
+	@echo "Generating proto..."
+	@protoc \
+		--proto_path=api \
+		--go_out=internal/proto \
+		--go_opt=paths=source_relative \
+		--go_opt=default_api_level=API_OPAQUE \
+		--go-grpc_out=internal/proto \
+		--go-grpc_opt=paths=source_relative \
+		shortener.proto
+
 .PHONY: mocks
 mocks:
 	@echo "Generating mocks..."

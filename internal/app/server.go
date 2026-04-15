@@ -9,64 +9,90 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"errors"
+	"fmt"
 	"math/big"
 	"net"
-	"net/http"
 	"time"
 
 	"go.uber.org/zap"
 )
 
-// prepare создаёт HTTP или HTTPS сервер и сохраняет его в App.
-// Для HTTPS дополнительно открывает TLS-listener и возвращает его.
-// Вызывается до запуска горутины, чтобы a.httpServer был доступен без гонки.
-func (a *App) prepare() (net.Listener, error) {
-	router := newRouter(a.handler, a.logger, a.authService)
-	addr := a.config.ServerAddress.String()
-
-	if a.config.EnableHTTPS {
-		tlsCfg, err := buildSelfSignedTLSConfig()
-		if err != nil {
-			return nil, err
-		}
-		ln, err := tls.Listen("tcp", addr, tlsCfg)
-		if err != nil {
-			return nil, err
-		}
-		a.httpServer = &http.Server{Handler: router}
-		return ln, nil
-	}
-
-	a.httpServer = &http.Server{Addr: addr, Handler: router}
-	return nil, nil
+// Server описывает полный жизненный цикл протокольного сервера.
+// Каждый протокол реализует этот интерфейс независимо.
+type Server interface {
+	Name() string
+	Prepare(tlsCfg *tls.Config) (net.Listener, error)
+	Serve(ln net.Listener) error
+	Shutdown(ctx context.Context) error
 }
 
-// serve запускает сервер и блокирует до его остановки.
-// Возвращает nil при штатном завершении через Shutdown.
-func (a *App) serve(ln net.Listener) error {
-	if ln != nil {
-		a.logger.Info("Starting HTTPS server", zap.String("address", ln.Addr().String()))
-		if err := a.httpServer.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
-			return err
+// shutdowner используется внутри runParallel и не привязан к Server,
+// чтобы оставить runParallel универсальным.
+type shutdowner interface {
+	Shutdown(ctx context.Context) error
+}
+
+// prepare открывает listeners для всех серверов приложения.
+// TLS-конфиг генерируется один раз и передаётся каждому серверу, если EnableHTTPS=true.
+func (a *App) prepare() ([]net.Listener, error) {
+	var tlsCfg *tls.Config
+	if a.config.EnableHTTPS {
+		var err error
+		tlsCfg, err = buildSelfSignedTLSConfig()
+		if err != nil {
+			return nil, err
 		}
-		return nil
 	}
 
-	a.logger.Info("Starting HTTP server", zap.String("address", a.httpServer.Addr))
-	if err := a.httpServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		return err
+	listeners := make([]net.Listener, 0, len(a.servers))
+	for _, s := range a.servers {
+		ln, err := s.Prepare(tlsCfg)
+		if err != nil {
+			for _, opened := range listeners {
+				opened.Close()
+			}
+			return nil, err
+		}
+		listeners = append(listeners, ln)
+	}
+	return listeners, nil
+}
+
+// serve запускает сервер на listener и блокирует до его остановки.
+func (a *App) serve(s Server, ln net.Listener) error {
+	a.logger.Info("Starting server",
+		zap.String("name", s.Name()),
+		zap.String("address", ln.Addr().String()),
+	)
+	if err := s.Serve(ln); err != nil {
+		return fmt.Errorf("%s server: %w", s.Name(), err)
 	}
 	return nil
 }
 
-// shutdown выполняет graceful shutdown: прекращает приём новых запросов,
-// ждёт завершения всех активных запросов, затем возвращает управление.
+// shutdown выполняет graceful shutdown всех серверов параллельно.
 func (a *App) shutdown(ctx context.Context) error {
-	if a.httpServer == nil {
-		return nil
+	servers := make([]shutdowner, len(a.servers))
+	for i, s := range a.servers {
+		servers[i] = s
 	}
-	return a.httpServer.Shutdown(ctx)
+	return runParallel(ctx, servers...)
+}
+
+// runParallel останавливает серверы параллельно и возвращает первую встреченную ошибку.
+func runParallel(ctx context.Context, servers ...shutdowner) error {
+	errCh := make(chan error, len(servers))
+	for _, s := range servers {
+		s := s
+		go func() { errCh <- s.Shutdown(ctx) }()
+	}
+	var firstErr error
+	for range servers {
+		if err := <-errCh; err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 // buildSelfSignedTLSConfig генерирует самоподписанный TLS-сертификат в памяти.

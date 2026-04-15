@@ -5,7 +5,6 @@ package app
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,6 +17,7 @@ import (
 	"github.com/avc-dev/url-shortener/internal/service"
 	"github.com/avc-dev/url-shortener/internal/usecase"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/health"
 )
 
 // App представляет приложение URL shortener
@@ -29,7 +29,8 @@ type App struct {
 	authService *service.AuthService
 	urlUsecase  *usecase.URLUsecase
 	audit       *audit.Subject
-	httpServer  *http.Server
+	healthSrv   *health.Server
+	servers     []Server
 }
 
 // New создает новый экземпляр приложения
@@ -44,11 +45,13 @@ func New() (*App, error) {
 		return nil, err
 	}
 
-	h, dbPool, authService, auditSubject, urlUsecase, err := initDependencies(cfg, logger)
+	h, dbPool, authService, auditSubject, urlUsecase, grpcSrv, healthSrv, err := initDependencies(cfg, logger)
 	if err != nil {
 		logger.Sync()
 		return nil, err
 	}
+
+	router := newRouter(h, logger, authService, cfg.TrustedSubnet)
 
 	return &App{
 		config:      cfg,
@@ -58,12 +61,17 @@ func New() (*App, error) {
 		authService: authService,
 		urlUsecase:  urlUsecase,
 		audit:       auditSubject,
+		healthSrv:   healthSrv,
+		servers: []Server{
+			newHTTPServer(cfg.ServerAddress.String(), router),
+			newGRPCServer(cfg.GRPCAddress.String(), grpcSrv),
+		},
 	}, nil
 }
 
 // Run — точка входа для запуска сервера из main.
-// Создаёт приложение, запускает сервер и обрабатывает сигналы SIGTERM/SIGINT/SIGQUIT
-// для graceful shutdown: ждёт завершения всех активных запросов, затем освобождает ресурсы.
+// Запускает все серверы параллельно, обрабатывает сигналы SIGTERM/SIGINT/SIGQUIT
+// для graceful shutdown.
 func Run() error {
 	app, err := New()
 	if err != nil {
@@ -71,24 +79,32 @@ func Run() error {
 	}
 	defer app.logger.Sync()
 
-	ln, err := app.prepare()
+	listeners, err := app.prepare()
 	if err != nil {
 		app.Close()
 		return err
 	}
 
+	// Health checker живёт пока серверы работают.
+	// Отменяется первым — до shutdown, чтобы не обновлять статус в процессе остановки.
+	healthCtx, cancelHealth := context.WithCancel(context.Background())
+	defer cancelHealth()
+	app.startHealthChecker(healthCtx)
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer signal.Stop(sigCh)
 
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- app.serve(ln)
-	}()
+	errCh := make(chan error, len(app.servers))
+	for i, s := range app.servers {
+		s, ln := s, listeners[i]
+		go func() { errCh <- app.serve(s, ln) }()
+	}
 
 	select {
 	case sig := <-sigCh:
 		app.logger.Info("Received signal, shutting down", zap.String("signal", sig.String()))
+		cancelHealth()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if shutdownErr := app.shutdown(ctx); shutdownErr != nil {
@@ -96,7 +112,17 @@ func Run() error {
 		}
 		app.Close()
 		return nil
+
 	case err := <-errCh:
+		// Один из серверов упал — останавливаем остальные перед выходом,
+		// чтобы in-flight запросы не были обрублены внезапно.
+		app.logger.Error("Server failed, initiating shutdown", zap.Error(err))
+		cancelHealth()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if shutdownErr := app.shutdown(shutdownCtx); shutdownErr != nil {
+			app.logger.Error("Graceful shutdown after failure failed", zap.Error(shutdownErr))
+		}
 		app.Close()
 		return err
 	}

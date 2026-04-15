@@ -28,7 +28,9 @@ type Config struct {
 	JWTSecret       string         `env:"JWT_SECRET" envDefault:"your-secret-key" json:"jwt_secret"`
 	AuditFile       string         `env:"AUDIT_FILE"         json:"audit_file"`
 	AuditURL        string         `env:"AUDIT_URL"          json:"audit_url"`
+	TrustedSubnet   string         `env:"TRUSTED_SUBNET"     json:"trusted_subnet"`
 	ServerAddress   NetworkAddress `env:"SERVER_ADDRESS"     json:"server_address"`
+	GRPCAddress     NetworkAddress `env:"GRPC_ADDRESS"       json:"grpc_address"`
 	Retry           RetryConfig    `envPrefix:"RETRY_"       json:"retry"`
 	EnableHTTPS     bool           `env:"ENABLE_HTTPS"       json:"enable_https"`
 }
@@ -37,6 +39,7 @@ type Config struct {
 func NewDefaultConfig() *Config {
 	return &Config{
 		ServerAddress: NetworkAddress{Host: "localhost", Port: 8080},
+		GRPCAddress:   NetworkAddress{Host: "localhost", Port: 3200},
 		BaseURL:       URLPrefix("http://localhost:8080/"),
 		JWTSecret:     "your-secret-key",
 		Retry:         RetryConfig{MaxAttempts: 100},
@@ -52,6 +55,7 @@ func Load() (*Config, error) {
 	cfg := NewDefaultConfig()
 
 	addrFlag := flag.String("a", "", "address to run HTTP server")
+	grpcAddrFlag := flag.String("g", "", "address to run gRPC server")
 	baseURLFlag := flag.String("b", "", "base URL for shortened URL")
 	fileStoragePathFlag := flag.String("f", "", "file storage path")
 	databaseDSNFlag := flag.String("d", "", "database DSN")
@@ -59,6 +63,7 @@ func Load() (*Config, error) {
 	maxAttemptsFlag := flag.Int("r", 0, "maximum attempts for code generation")
 	auditFileFlag := flag.String("audit-file", "", "path to audit log file")
 	auditURLFlag := flag.String("audit-url", "", "URL of remote audit server")
+	trustedSubnetFlag := flag.String("t", "", "trusted subnet in CIDR notation (e.g. 192.168.1.0/24)")
 	enableHTTPSFlag := flag.Bool("s", false, "enable HTTPS")
 	configFileFlag := flag.String("c", "", "path to JSON config file")
 	flag.StringVar(configFileFlag, "config", "", "path to JSON config file")
@@ -92,6 +97,11 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("invalid server address flag: %w", err)
 		}
 	}
+	if *grpcAddrFlag != "" {
+		if err := cfg.GRPCAddress.Set(*grpcAddrFlag); err != nil {
+			return nil, fmt.Errorf("invalid gRPC address flag: %w", err)
+		}
+	}
 	if *baseURLFlag != "" {
 		if err := cfg.BaseURL.Set(*baseURLFlag); err != nil {
 			return nil, fmt.Errorf("invalid base URL flag: %w", err)
@@ -114,6 +124,9 @@ func Load() (*Config, error) {
 	}
 	if *auditURLFlag != "" {
 		cfg.AuditURL = *auditURLFlag
+	}
+	if *trustedSubnetFlag != "" {
+		cfg.TrustedSubnet = *trustedSubnetFlag
 	}
 
 	// ENV переменные имеют высший приоритет.

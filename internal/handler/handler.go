@@ -4,7 +4,6 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -17,10 +16,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// Auditor определяет интерфейс системы аудита (паттерн «Наблюдатель»)
-type Auditor interface {
-	Notify(ctx context.Context, event audit.Event)
-}
+// Auditor — псевдоним audit.Notifier. Определён как type alias для обратной
+// совместимости: существующий код, использующий handler.Auditor, продолжает работать
+// без изменений, а единственным источником истины остаётся пакет audit.
+type Auditor = audit.Notifier
 
 // URLUsecase определяет интерфейс для бизнес-логики работы с URL
 type URLUsecase interface {
@@ -29,6 +28,7 @@ type URLUsecase interface {
 	GetOriginalURL(code string) (string, error)
 	GetURLsByUserID(userID string) ([]model.UserURLResponse, error)
 	DeleteURLs(codes []string, userID string) error
+	GetStats() (model.Stats, error)
 }
 
 // Handler обрабатывает HTTP запросы
@@ -56,6 +56,18 @@ func (h *Handler) emitAudit(r *http.Request, action, userID, url string) {
 		return
 	}
 	event := audit.NewEvent(action, userID, url)
+	for _, a := range h.auditors {
+		a.Notify(r.Context(), event)
+	}
+}
+
+// emitAuditFollow уведомляет аудиторов о переходе по короткому коду,
+// сохраняя как короткий код (для трассировки), так и оригинальный URL.
+func (h *Handler) emitAuditFollow(r *http.Request, userID, shortCode, originalURL string) {
+	if len(h.auditors) == 0 {
+		return
+	}
+	event := audit.NewFollowEvent(userID, shortCode, originalURL)
 	for _, a := range h.auditors {
 		a.Notify(r.Context(), event)
 	}

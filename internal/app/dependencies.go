@@ -7,23 +7,32 @@ import (
 	"github.com/avc-dev/url-shortener/internal/audit"
 	"github.com/avc-dev/url-shortener/internal/config"
 	"github.com/avc-dev/url-shortener/internal/config/db"
+	"github.com/avc-dev/url-shortener/internal/grpchandler"
 	"github.com/avc-dev/url-shortener/internal/handler"
 	"github.com/avc-dev/url-shortener/internal/migrations"
+	pb "github.com/avc-dev/url-shortener/internal/proto"
 	"github.com/avc-dev/url-shortener/internal/repository"
 	"github.com/avc-dev/url-shortener/internal/service"
 	"github.com/avc-dev/url-shortener/internal/store"
 	"github.com/avc-dev/url-shortener/internal/usecase"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 )
 
-// initDependencies инициализирует все зависимости приложения
-func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler, db.Database, *service.AuthService, *audit.Subject, *usecase.URLUsecase, error) {
+// initDependencies инициализирует все зависимости приложения.
+func initDependencies(cfg *config.Config, logger *zap.Logger) (
+	*handler.Handler, db.Database, *service.AuthService, *audit.Subject, *usecase.URLUsecase,
+	*grpc.Server, *health.Server, error,
+) {
 	var dbPool db.Database
 	if cfg.DatabaseDSN != "" {
 		var err error
 		dbPool, err = initDatabase(cfg, logger)
 		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize database: %w", err)
+			return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize database: %w", err)
 		}
 	}
 
@@ -32,7 +41,7 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 		if dbPool != nil {
 			dbPool.Close()
 		}
-		return nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize storage: %w", err)
+		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
 	repo := repository.New(storage)
@@ -42,15 +51,50 @@ func initDependencies(cfg *config.Config, logger *zap.Logger) (*handler.Handler,
 
 	auditSubject := initAudit(cfg, logger)
 
-	// Передаём Subject в Handler только если он не nil, чтобы избежать
-	// typed-nil внутри интерфейса handler.Auditor.
 	var handlerOpts []handler.Auditor
 	if auditSubject != nil {
 		handlerOpts = append(handlerOpts, auditSubject)
 	}
 	h := handler.New(urlUsecase, logger, dbPool, handlerOpts...)
 
-	return h, dbPool, authService, auditSubject, urlUsecase, nil
+	grpcSrv, healthSrv := initGRPCServer(urlUsecase, authService, auditSubject, logger)
+
+	return h, dbPool, authService, auditSubject, urlUsecase, grpcSrv, healthSrv, nil
+}
+
+// initGRPCServer создаёт gRPC-сервер с chain-интерцепторами и регистрирует:
+//   - ShortenerService — основной бизнес-хендлер
+//   - Health — стандартный health check (grpc_health_v1)
+//   - Reflection — для grpcurl и Postman без .proto файла
+func initGRPCServer(
+	urlUsecase *usecase.URLUsecase,
+	authService *service.AuthService,
+	auditSubject *audit.Subject,
+	logger *zap.Logger,
+) (*grpc.Server, *health.Server) {
+	srv := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			grpchandler.LoggingInterceptor(logger),
+			grpchandler.AuthInterceptor(authService),
+		),
+	)
+
+	var auditors []audit.Notifier
+	if auditSubject != nil {
+		auditors = append(auditors, auditSubject)
+	}
+	pb.RegisterShortenerServiceServer(srv, grpchandler.New(urlUsecase, auditors...))
+
+	// Health check — возвращаем сервер наружу, чтобы App мог обновлять статус
+	// при изменении доступности БД (см. app/health.go).
+	healthSrv := health.NewServer()
+	healthSrv.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus(pb.ShortenerService_ServiceDesc.ServiceName, grpc_health_v1.HealthCheckResponse_SERVING)
+	grpc_health_v1.RegisterHealthServer(srv, healthSrv)
+
+	reflection.Register(srv)
+
+	return srv, healthSrv
 }
 
 // initAudit создаёт Subject с наблюдателями на основе конфигурации.
@@ -72,7 +116,7 @@ func initAudit(cfg *config.Config, logger *zap.Logger) *audit.Subject {
 	return subject
 }
 
-// initDatabase инициализирует подключение к базе данных и применяет миграции
+// initDatabase инициализирует подключение к базе данных и применяет миграции.
 func initDatabase(cfg *config.Config, logger *zap.Logger) (db.Database, error) {
 	ctx := context.Background()
 	dbConfig := db.NewConfig(cfg.DatabaseDSN)
@@ -84,7 +128,6 @@ func initDatabase(cfg *config.Config, logger *zap.Logger) (db.Database, error) {
 
 	logger.Info("Connected to database", zap.String("dsn", cfg.DatabaseDSN))
 
-	// Применяем миграции автоматически
 	migrator := migrations.NewMigrator(pool.DB(), logger)
 	if err := migrator.RunUp(); err != nil {
 		pool.Close()
@@ -99,13 +142,11 @@ func initDatabase(cfg *config.Config, logger *zap.Logger) (db.Database, error) {
 // 2. File storage (если указан путь к файлу)
 // 3. In-memory storage
 func initStorage(cfg *config.Config, dbPool db.Database, logger *zap.Logger) (repository.Store, error) {
-	// Приоритет 1: PostgreSQL
 	if dbPool != nil {
 		logger.Info("Using PostgreSQL storage")
 		return store.NewDatabaseStore(dbPool), nil
 	}
 
-	// Приоритет 2: File storage
 	if cfg.FileStoragePath != "" {
 		fileStore, err := store.NewFileStore(cfg.FileStoragePath)
 		if err != nil {
@@ -115,7 +156,6 @@ func initStorage(cfg *config.Config, dbPool db.Database, logger *zap.Logger) (re
 		return fileStore, nil
 	}
 
-	// Приоритет 3: In-memory storage
 	logger.Info("Using in-memory storage")
 	return store.NewStore(), nil
 }

@@ -197,6 +197,11 @@ func (fs *FileStore) IsURLOwnedByUser(code model.Code, userID string) bool {
 	return exists && storedUserID == userID && !fs.deletedMap[code]
 }
 
+// GetStats возвращает количество сокращённых URL и уникальных пользователей
+func (fs *FileStore) GetStats() (model.Stats, error) {
+	return fs.store.GetStats()
+}
+
 // DeleteURLsBatch помечает несколько URL как удалённые для указанного пользователя
 func (fs *FileStore) DeleteURLsBatch(codes []model.Code, userID string) error {
 	// Обновляем deletedMap в FileStore для синхронизации
